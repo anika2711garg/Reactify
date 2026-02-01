@@ -22,6 +22,7 @@ export function LivePreview({ code }: LivePreviewProps) {
         let src = input || "";
 
         // 1. Remove non-runtime syntax
+        // Remove "use client" directive
         src = src.replace(/["']use client["'];?\s*/g, "");
         // Remove imports (handling multi-line and optional semicolon)
         src = src.replace(/import\s+(?:(?:\w+|[\w\s{},*]+)\s+from\s+)?['"][^'"]+['"];?/g, "");
