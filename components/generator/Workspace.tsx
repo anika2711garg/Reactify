@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { LivePreview } from './LivePreview';
-import { Send, Code2, Play, Copy, Check, Loader2 } from 'lucide-react';
+import { Send, Code2, Play, Copy, Check, Loader2, Smartphone, Monitor, Download } from 'lucide-react';
 
 interface WorkspaceProps {
     initialCode: string;
@@ -13,6 +13,9 @@ export function Workspace({ initialCode }: WorkspaceProps) {
     const [input, setInput] = useState('');
     const [isIterating, setIsIterating] = useState(false);
     const [copied, setCopied] = useState(false);
+
+    // UI States
+    const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>('desktop');
 
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -46,6 +49,18 @@ export function Workspace({ initialCode }: WorkspaceProps) {
         setTimeout(() => setCopied(false), 2000);
     };
 
+    const handleDownload = () => {
+        const blob = new Blob([code], { type: 'text/typescript' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'Component.tsx';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
     return (
         <div className="fixed inset-0 z-50 flex h-screen w-full bg-[#0a0a0a] text-white overflow-hidden animate-in fade-in duration-300">
             {/* LEFT: Code Editor / Viewer */}
@@ -57,13 +72,22 @@ export function Workspace({ initialCode }: WorkspaceProps) {
                         </div>
                         Generated Component.tsx
                     </div>
-                    <button
-                        onClick={handleCopy}
-                        className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-md hover:bg-white/5 text-slate-400 transition-colors"
-                    >
-                        {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
-                        {copied ? 'Copied' : 'Copy Code'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={handleDownload}
+                            className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-md hover:bg-white/5 text-slate-400 transition-colors"
+                            title="Download .tsx"
+                        >
+                            <Download className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                            onClick={handleCopy}
+                            className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-md hover:bg-white/5 text-slate-400 transition-colors"
+                        >
+                            {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                            {copied ? 'Copied' : 'Copy Code'}
+                        </button>
+                    </div>
                 </div>
                 <div className="flex-1 overflow-auto bg-[#0a0a0a] p-0 font-mono text-sm leading-relaxed text-slate-300">
                     <textarea
@@ -110,14 +134,43 @@ export function Workspace({ initialCode }: WorkspaceProps) {
                         </div>
                         Live Preview
                     </div>
+
+                    {/* View Toggle */}
+                    <div className="flex items-center gap-1 bg-slate-200/50 p-1 rounded-lg">
+                        <button
+                            onClick={() => setViewMode('desktop')}
+                            className={`p-1.5 rounded-md transition-all ${viewMode === 'desktop' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                            <Monitor className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={() => setViewMode('mobile')}
+                            className={`p-1.5 rounded-md transition-all ${viewMode === 'mobile' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                            <Smartphone className="w-4 h-4" />
+                        </button>
+                    </div>
+
                     <div className="flex items-center gap-2">
                         <span className="w-3 h-3 rounded-full bg-red-400/20 border border-red-400/50"></span>
                         <span className="w-3 h-3 rounded-full bg-yellow-400/20 border border-yellow-400/50"></span>
                         <span className="w-3 h-3 rounded-full bg-green-400/20 border border-green-400/50"></span>
                     </div>
                 </div>
-                <div className="flex-1 overflow-hidden relative bg-slate-100">
-                    <LivePreview code={code} />
+
+                {/* Preview Area */}
+                <div className="flex-1 overflow-hidden relative bg-slate-100 flex items-center justify-center p-8 transition-all duration-300">
+                    <div
+                        className={`w-full h-full bg-white shadow-sm border border-slate-200 rounded-lg overflow-hidden relative transition-all duration-500 ease-in-out ${viewMode === 'mobile' ? 'max-w-[375px] max-h-[812px] shadow-xl border-slate-300' : 'max-w-full max-h-full'
+                            }`}
+                    >
+                        <LivePreview code={code} />
+                    </div>
+                </div>
+
+                <div className="py-2 px-4 bg-white border-t border-slate-200 text-xs text-slate-500 flex justify-between">
+                    <span>Preview Mode: {viewMode === 'desktop' ? 'Desktop' : 'iPhone 13 mini'}</span>
+                    <span>{viewMode === 'desktop' ? '100% Width' : '375px × 812px'}</span>
                 </div>
             </div>
         </div>

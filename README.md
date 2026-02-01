@@ -1,76 +1,81 @@
 # Website → React Component Generator
 
-A production-ready tool for creators to turn website sections into clean, editable React + Tailwind components using AI.
+An intelligent tool for creators to instantly convert website sections into production-grade React + Tailwind components.
 
-![CleanShot 2024-01-31 at 13 00 00](https://github.com/placeholder-image-url.png)
+## 🚀 Live Demo
 
-## 🚀 Features
+[Insert Live Demo URL Here]
 
--   **URL Scraping**: Enter any public URL to extract its structure.
--   **Smart Section Detection**: Automatically identifies Hero, Features, Pricing, and other logical sections.
--   **AI Generation**: Converts raw HTML into production-ready React (TypeScript) + Tailwind CSS code.
--   **Live Preview**: Real-time rendering of generated components.
--   **Iterative Refinement**: Chat-style interface to tweak designs (e.g., "Make the button blue", "Reduce padding").
--   **Code Export**: Copy clean, accessible TSX code.
+## ✨ Features
 
-## 🛠 Tech Stack
+-   **URL Scraping**: Extracts content and structure from public websites.
+-   **Intelligent Parsing**: Automatically detects logical sections (Hero, Pricing, Testimonials).
+-   **AI Generation**: Converts raw HTML into clean, accessible **React** components using **Tailwind CSS**.
+-   **Live Preview**: Real-time rendering of generated code.
+-   **Mobile/Desktop Toggle**: Test responsiveness instantly.
+-   **Iterative Refinement**: Chat with the AI to tweak designs (e.g., "Make it dark mode").
+-   **Export**: Download `.tsx` files directly.
 
--   **Frontend**: Next.js 14+ (App Router), React, TypeScript, Tailwind CSS v4, Lucide Icons.
--   **Preview Engine**: `react-live` for safe in-browser rendering.
--   **Backend**: Next.js API Routes (Node.js).
--   **Scraping**: Playwright (Headless Browser) + Cheerio (HTML Parsing).
--   **AI**: OpenAI API (GPT-4o) for intelligent code generation.
+## 🛠️ Tech Stack
 
-## 🏗 Architecture
+-   **Framework**: Next.js 15 (App Router)
+-   **Styling**: Tailwind CSS v4
+-   **AI**: Google Gemini 1.5 Flash (via Vercel AI SDK / Custom integration)
+-   **Scraping**: Playwright + Cheerio
+-   **Live Preview**: `react-live`
+-   **Icons**: `lucide-react`
 
-### 1. Scraping Pipeline (`/api/scrape`)
--   **Playwright**: Launches a headless Chromium instance to load the page. We use `waitUntil: 'domcontentloaded'` and a short `networkidle` wait to ensure dynamic content is captured.
--   **Cheerio**: cleaner and parser.
-    -   Removes scripts, trackers, and ads.
-    -   Heuristics: Identifies sections based on `<section>`, `<header>`, `<footer>` tags and class names like "hero", "feature", etc.
+## 🏗️ Architecture
 
-### 2. Component Generation (`/api/generate`)
--   **System Prompt**: Enforces strict TypeScript + Tailwind-only rules.
--   **Input**: Receives specific HTML section.
--   **Output**: Functional React component string.
+1.  **Scraping Layer (`/api/scrape`)**:
+    -   Uses **Playwright** (headless) to fetch the full DOM, handling JS-heavy sites.
+    -   Uses **Cheerio** to parse and verify section heuristics.
 
-### 3. Iteration Engine (`/api/iterate`)
--   **Context**: Takes the *current* code and a user *instruction*.
--   **AI**: Applies the requested changes without rewriting the entire logic.
+2.  **Generation Layer (`/api/generate`)**:
+    -   Feeds cleaned HTML into **Gemini 1.5 Flash**.
+    -   System prompt enforces strictly valid React + Tailwind code.
+
+3.  **Iteration Layer (`/api/iterate`)**:
+    -   Maintains context of the current code.
+    -   Applies natural language transformations to the AST/Text.
+
+4.  **Frontend**:
+    -   **Workspace**: A split-pane IDE-like environment.
+    -   **LivePreview**: Sandboxed component rendering.
 
 ## 📦 Setup & Installation
 
-1.  **Clone the repository**
-2.  **Install dependencies**:
+1.  **Clone the repo**
+    ```bash
+    git clone https://github.com/yourusername/component-generator.git
+    cd component-generator
+    ```
+
+2.  **Install dependencies**
     ```bash
     npm install
+    # Ensure Playwright browsers are installed
     npx playwright install chromium
     ```
-3.  **Environment Variables**:
-    Create `.env.local` and add:
+
+3.  **Environment Variables**
+    Create a `.env.local` file:
     ```env
-    OPENAI_API_KEY=sk-...
+    GOOGLE_API_KEY=your_gemini_api_key_here
     ```
-4.  **Run Development Server**:
+
+4.  **Run Development Server**
     ```bash
     npm run dev
     ```
-    Open [http://localhost:3000](http://localhost:3000).
 
 ## ⚠️ Known Limitations
 
-1.  **Complex SPAs**: Sites that require extensive interaction or login to view content are blocked.
-2.  **Styles**: We do not scrape external CSS files due to complexity. The AI approximates the *visual vibe* based on the HTML structure and standard Tailwind classes.
-3.  **Images**: We use the original image URLs. If the source site blocks hotlinking, images may not load.
-4.  **Security**: The generated code is evaluated in the browser. While we intend for it to be safe, avoid pasting malicious HTML instructions.
+-   **Complex Interactivity**: The AI generates *UI structure* perfectly, but complex logic (carousels, tabs) might need manual wiring.
+-   **Images**: Uses original URLs. If the source site has hotlink protection, images may not load.
+-   **Auth Walls**: Only works on public URLS.
+-   **Rate Limits**: Dependent on the AI provider's limits.
 
-## 🧠 AI Prompt Strategy
+## 📷 Screenshots
 
-We use a specialized "Frontend Expert" system prompt that prioritizes:
--   **Maintainability**: Prefer standard Tailwind classes over arbitrary values.
--   **Responsiveness**: Always adding `md:` and `lg:` modifiers.
--   **Accessibility**: Using semantic HTML tags.
-
----
-
-Built for the **Intern Assignment**.
+*(Add screenshots of the Workspace and Input flow here)*

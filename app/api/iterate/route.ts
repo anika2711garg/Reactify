@@ -57,10 +57,19 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ code });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('AI Iteration Error:', error);
+
+        let errorMessage = error.message || 'Failed to iterate component';
+        // Handle specific 404 (API Config) error
+        if (errorMessage.includes('404') && errorMessage.includes('not found')) {
+            errorMessage = 'Google Generative AI API is not enabled for your project. Please enable it in Google Cloud Console.';
+        } else if (errorMessage.includes('API_KEY')) {
+            errorMessage = 'Invalid Google API Key. Please check your .env.local file.';
+        }
+
         return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Failed to iterate component' },
+            { error: errorMessage },
             { status: 500 }
         );
     }
