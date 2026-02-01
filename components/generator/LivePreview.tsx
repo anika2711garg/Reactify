@@ -27,16 +27,13 @@ export function LivePreview({ code }: LivePreviewProps) {
         // Remove "export default"
         cleanCode = cleanCode.replace(/export default function/, 'function');
 
-        // If it's a named function, we need to call it/render it. 
-        // react-live implicitly renders the last expression if it's a value.
-        // So "function App() {...}; <App />" works.
-
         // Extract function name
         const match = cleanCode.match(/function\s+(\w+)/);
         const componentName = match ? match[1] : null;
 
         if (componentName) {
-            return `${cleanCode}\n;render(<${componentName} />)`;
+            // For react-live with noInline=false, we just need to add the JSX at the end
+            return `${cleanCode}\n\n<${componentName} />`;
         }
 
         return cleanCode;
