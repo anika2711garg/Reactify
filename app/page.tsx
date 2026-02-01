@@ -10,6 +10,7 @@ export default function Home() {
   const [step, setStep] = useState<'input' | 'selection' | 'workspace'>('input');
 
   // State
+  //hi
   const [currentUrl, setCurrentUrl] = useState('');
   const [sections, setSections] = useState<Section[]>([]);
   const [selectedSection, setSelectedSection] = useState<Section | null>(null);
