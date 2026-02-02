@@ -21,11 +21,19 @@ export function SectionList({ sections, onSelect, selectedId }: SectionListProps
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {sections.map((section) => (
-                    <button
+                    <div
                         key={section.id}
                         onClick={() => onSelect(section)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                onSelect(section);
+                            }
+                        }}
                         className={`
-              group relative flex flex-col items-start text-left p-6 rounded-2xl border transition-all duration-300
+              group relative flex flex-col items-start text-left p-6 rounded-2xl border transition-all duration-300 cursor-pointer
               ${selectedId === section.id
                                 ? 'border-indigo-500 bg-indigo-500/10 shadow-[0_0_30px_-10px_rgba(99,102,241,0.3)]'
                                 : 'border-white/5 bg-white/5 hover:bg-white/10 hover:border-white/10 hover:-translate-y-1'
@@ -62,7 +70,7 @@ export function SectionList({ sections, onSelect, selectedId }: SectionListProps
             `}>
                             {selectedId === section.id ? 'Generating...' : 'Generate React Code'}
                         </div>
-                    </button>
+                    </div>
                 ))}
             </div>
         </div>

@@ -1,21 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import genAI, { MODEL_NAME } from '@/lib/ai';
+import { generateWithFallback } from '@/lib/ai';
 
 const SYSTEM_PROMPT = `
-You are an expert Frontend Engineer specializing in **React, TypeScript, and Tailwind CSS**.
+You are an expert Frontend Engineer specializing in **React, JavaScript, and Tailwind CSS**.
 Your goal is to convert raw HTML sections (scraped from websites) into **clean, production-ready, beautiful React components**.
 
 **STRICT REQUIREMENTS:**
-1. **Output:** Return ONLY the TypeScript code for the component. Do not include markdown code fences (\`\`\`), explanations, or commentary. Just pure code.
+1. **Output:** Return ONLY the React code (JavaScript/JSX). Do not include markdown code fences (\`\`\`). No TypeScript types.
 2. **Tech Stack:**
    - React (Functional Components)
-   - TypeScript (Interfaces for props - keep them simple)
+   - JavaScript (No TypeScript types/interfaces)
    - Tailwind CSS (for ALL styling)
    - Lucide React (for icons, if needed. Import from 'lucide-react')
-3. **Design System:**
-   - Use standard Tailwind utility classes.
-   - Match the *visual vibe* of the input HTML but improve it (better spacing, typography, modern feel).
-   - Prefer standard Tailwind colors (e.g., bg-slate-900, text-blue-600) over arbitrary values.
+   - **Do NOT** use react-icons (e.g., no FiSearch, FaHome). Use ONLY lucide-react.
+3. **Design System & Visual Excellence (CRITICAL):**
+   - **Modern & Premium:** The component MUST look premium, modern, and polished. Avoid generic "bootstrappy" looks.
+   - **Colors:** Use refined color palettes (e.g., slate-900 for dark text, slate-500 for secondary, distinctive primary colors like indigo-600 or emerald-600).
+   - **Spacing:** Use generous whitespace (py-12, py-24). Don't cram elements.
+   - **Typography:** Use varying font weights (font-bold for headings, font-medium for accents) and tight leading (leading-tight) for large text.
+   - **Effects:** Use subtle shadows (shadow-lg, shadow-xl), rounded corners (rounded-xl, rounded-2xl), and possibly backdrop-blur or gradients where appropriate.
+   - **Micro-interactions:** Add hover states for all interactive elements (hover:scale-105, hover:text-blue-500, transition-all, duration-300).
 4. **Interactive Elements:**
    - Buttons, Inputs, Links must look interactive.
    - Use correct cursor states and hover effects (e.g., hover:bg-blue-700, cursor-pointer).
@@ -26,82 +30,72 @@ Your goal is to convert raw HTML sections (scraped from websites) into **clean, 
    - Use <img /> tags with the src provided in the HTML. 
    - Add meaningful alt text.
    - Add className="object-cover" or similar to prevent distortion.
-7. **JSX Syntax (CRITICAL - MOST COMMON ERROR SOURCE):**
+7. **JSX Syntax:**
    - ALWAYS use className NOT class
    - ALWAYS use htmlFor NOT for
-   - Use camelCase for all event handlers: onClick, onChange, onSubmit (not onclick, onchange)
-   - Use camelCase for HTML attributes: autoComplete, autoCapitalize, spellCheck, tabIndex, readOnly
-   - For boolean attributes, use proper JSX syntax: spellCheck={false}, autoComplete="off"
    - Self-close void elements: <img />, <input />, <br />
    - NO HTML comments (<!-- -->)
-8. **TypeScript:**
-   - Keep interfaces simple and at the top of the file
-   - Use proper typing for function parameters
-   - Don't use complex union types or generics unnecessarily
-9. **Component Structure:**
-   - Use a single default export function
-   - Component name should be descriptive (e.g., HeroSection, NavBar, FeatureCard)
-   - Keep the structure clean and readable
+8. **Code Style:**
+   - Keep props simple.
+   - Clean, readable code.
+9. **Structure:**
+   - Single default export.
+   - Clean, readable code.
+
+**Avoid:**
+- "Boxy" look with default borders everywhere.
+- Plain blue standard links.
+- Tiny clickable areas.
+- Lack of negative space.
 
 **INPUT:**
 You will receive the raw HTML of a website section.
 
 **OUTPUT FORMAT:**
-A single TypeScript file with one export default function component.
-Example structure:
-import React from 'react';
-import { ArrowRight, Menu } from 'lucide-react';
-
-interface HeroSectionProps {
-  // Add props if needed
-}
-
-export default function HeroSection({}: HeroSectionProps) {
-  return (
-    <section className="bg-white py-20">
-      <div className="container mx-auto px-4">
-        ...
-      </div>
-    </section>
-  );
-}
-
+A single React file (JavaScript/JSX) with one export default function component.
 Remember: NO markdown fences, NO explanations, ONLY the code!
 `;
 
 export async function POST(req: NextRequest) {
   try {
-    const { html, requirements } = await req.json();
+    const { html, requirements, style } = await req.json();
 
     if (!html) {
       return NextResponse.json({ error: 'HTML content is required' }, { status: 400 });
     }
 
-    if (!process.env.GOOGLE_API_KEY) {
-      return NextResponse.json({ error: 'Google API Key is missing' }, { status: 500 });
+    if (!process.env.GROQ_API_KEY && !process.env.GOOGLE_API_KEY) {
+      return NextResponse.json({ error: 'API Key is missing' }, { status: 500 });
     }
 
-    // Truncate HTML if it's too massive to save tokens, but keep enough for structure.
-    // 50k chars is a reasonable upper limit for a section.
-    const truncatedHtml = html.length > 50000 ? html.substring(0, 50000) + '...' : html;
+    // 20k chars is a reasonable upper limit for a section to ensure speed.
+    const truncatedHtml = html.length > 20000 ? html.substring(0, 20000) + '...' : html;
+
+    let styleInstruction = "";
+    if (style) {
+      styleInstruction = `
+    **STYLE VARIANT:** "${style}"
+    - If "Minimal": Use lots of whitespace, simple typography, subtle borders, no heavy shadows.
+    - If "Modern": Use glassmorphism, gradients, rounded corners, soft large shadows.
+    - If "Dense": Use compact spacing, smaller fonts, high information density, borders.
+    - If "Brutalist": Use high contrast, thick borders, sharp corners, bold typography.
+    `;
+    }
 
     const userMessage = `
     Here is the HTML section to convert:
     ${truncatedHtml}
 
+    ${styleInstruction}
     ${requirements ? `Additional User Requirements: ${requirements}` : ''}
     `;
 
-    const model = genAI.getGenerativeModel({
-      model: MODEL_NAME,
-      systemInstruction: SYSTEM_PROMPT
-    });
+    let code = await generateWithFallback([
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: userMessage }
+    ]);
 
-    const result = await model.generateContent(userMessage);
-    const response = await result.response;
-    let code = response.text();
-
-    // Cleanup: Remove markdown fences if the model ignored the system prompt
+    // Cleanup: Remove markdown fences
     code = code.replace(/```tsx?/g, '').replace(/```/g, '').trim();
 
     // Additional cleanup: Fix common HTML to JSX conversion issues
@@ -116,11 +110,8 @@ export async function POST(req: NextRequest) {
 
     let errorMessage = error.message || 'Failed to generate component';
 
-    // Handle specific 404 (API Config) error
-    if (errorMessage.includes('404') && errorMessage.includes('not found')) {
-      errorMessage = 'Google Generative AI API is not enabled for your project. Please enable it in Google Cloud Console.';
-    } else if (errorMessage.includes('API_KEY')) {
-      errorMessage = 'Invalid Google API Key. Please check your .env.local file.';
+    if (errorMessage.includes('401')) {
+      errorMessage = 'Invalid API Key. Please check your .env.local file.';
     }
 
     return NextResponse.json(

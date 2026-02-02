@@ -17,15 +17,16 @@ export async function POST(req: NextRequest) {
         }
 
         console.log(`Scraping: ${url}`);
-        const html = await scrapeUrl(url);
+        const { html, screenshot } = await scrapeUrl(url);
 
         console.log(`Parsing sections...`);
-        const sections = parseHtml(html);
+        const sections = parseHtml(html, url);
 
         return NextResponse.json({
             success: true,
             url,
-            sections
+            sections,
+            screenshot
         });
 
     } catch (error) {

@@ -1,27 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
-import genAI, { MODEL_NAME } from '@/lib/ai';
+import { generateWithFallback } from '@/lib/ai';
 
 const SYSTEM_PROMPT = `
 You are an expert Frontend Engineer and React Refactoring specialist.
 Your goal is to MODIFY existing React code based on user instructions.
 
 **STRICT REQUIREMENTS:**
-1. **Output:** Return ONLY the updated TypeScript code. No markdown fences.
-2. **Behavior:**
-   - Apply the user's change request (e.g., "Change background to blue", "Add more padding").
-   - PRESERVE existing functionality and structure unless asked to change it.
-   - Do NOT rewrite the entire component from scratch if only a small change is needed, but ensure the resulting code is complete and valid.
+1. **Output:** Return ONLY the updated React code (JavaScript/JSX). No markdown fences. No TypeScript.
+2. **Instruction Following:**
+   - **PRIORITY #1:** You MUST follow the user's instruction. If they say "make it green", MAKE IT GREEN.
+   - If the instruction contradicts the existing design, favor the instruction.
+   - If the user asks for a style change (color, spacing, layout), apply it boldly and correctly using Tailwind classes (e.g., bg-green-500, text-green-900).
+   - **Do NOT** explain your changes. Just return code.
+3. **Code Quality:**
+   - PRESERVE existing functionality unless asked to change it.
    - Maintain the same tech stack (React + Tailwind + Lucide).
-3. **Robustness:**
-   - If the user asks for something impossible, try to do the closest reasonable thing or ignore if strictly impossible (but usually just do it).
-   - Ensure clear, readable code.
+   - **Do NOT** use react-icons (e.g., no FiSearch, FaHome). Use ONLY lucide-react.
+   - Ensure the code is complete, valid, and production-ready.
+   - Do NOT introduce syntax errors.
+   - Use 'export default function GeneratedComponent' or similar consistent naming.
 
 **INPUT:**
 - Current Code
 - User Instruction
 
 **OUTPUT:**
-- The fully updated component code.
+- The fully updated component code. Only code.
 `;
 
 export async function POST(req: NextRequest) {
@@ -32,8 +36,8 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Current code and instruction are required' }, { status: 400 });
         }
 
-        if (!process.env.GOOGLE_API_KEY) {
-            return NextResponse.json({ error: 'Google API Key is missing' }, { status: 500 });
+        if (!process.env.GROQ_API_KEY && !process.env.GOOGLE_API_KEY) {
+            return NextResponse.json({ error: 'API Key is missing' }, { status: 500 });
         }
 
         const userMessage = `
@@ -44,14 +48,10 @@ export async function POST(req: NextRequest) {
     ${instruction}
     `;
 
-        const model = genAI.getGenerativeModel({
-            model: MODEL_NAME,
-            systemInstruction: SYSTEM_PROMPT
-        });
-
-        const result = await model.generateContent(userMessage);
-        const response = await result.response;
-        let code = response.text();
+        let code = await generateWithFallback([
+            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'user', content: userMessage }
+        ]);
 
         code = code.replace(/```tsx?/g, '').replace(/```/g, '').trim();
 

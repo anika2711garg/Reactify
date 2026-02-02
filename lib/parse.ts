@@ -8,8 +8,43 @@ export interface Section {
     name: string;
 }
 
-export function parseHtml(html: string): Section[] {
+export function parseHtml(html: string, baseUrl: string): Section[] {
     const $ = cheerio.load(html);
+
+    // Resolving relative URLs
+    // Handle images
+    $('img').each((_, el) => {
+        const src = $(el).attr('src');
+        if (src && !src.startsWith('http') && !src.startsWith('data:')) {
+            try {
+                $(el).attr('src', new URL(src, baseUrl).toString());
+            } catch (e) { }
+        }
+        // Handle srcset for responsive images
+        const srcset = $(el).attr('srcset');
+        if (srcset) {
+            const newSrcset = srcset.split(',').map(part => {
+                const [url, desc] = part.trim().split(/\s+/);
+                if (url && !url.startsWith('http') && !url.startsWith('data:')) {
+                    try {
+                        return `${new URL(url, baseUrl).toString()} ${desc || ''}`;
+                    } catch (e) { return part; }
+                }
+                return part;
+            }).join(', ');
+            $(el).attr('srcset', newSrcset);
+        }
+    });
+
+    // Handle links
+    $('a').each((_, el) => {
+        const href = $(el).attr('href');
+        if (href && !href.startsWith('http') && !href.startsWith('#') && !href.startsWith('mailto:')) {
+            try {
+                $(el).attr('href', new URL(href, baseUrl).toString());
+            } catch (e) { }
+        }
+    });
 
     // 1. Clean HTML
     $('script').remove();
