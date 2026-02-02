@@ -230,11 +230,11 @@ export function Workspace({ initialCode, screenshot, onBack }: WorkspaceProps) {
                         </div>
                     </div>
                 ) : (
-                    <div className="flex-1 overflow-auto bg-[#0c0c0e] p-0 font-mono text-sm leading-relaxed text-slate-300 selection:bg-indigo-500/30">
+                    <div className="flex-1 overflow-hidden bg-[#0c0c0e] p-0 font-mono text-sm leading-relaxed text-slate-300 selection:bg-indigo-500/30">
                         <textarea
                             value={code}
                             onChange={(e) => setCode(e.target.value)}
-                            className="w-full h-full bg-transparent outline-none resize-none p-6 font-mono text-[13px] leading-6 text-[#e6edf3]"
+                            className="w-full h-full block bg-transparent outline-none resize-none p-6 font-mono text-[13px] leading-6 text-[#e6edf3]"
                             spellCheck={false}
                         />
                     </div>

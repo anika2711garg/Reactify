@@ -18,9 +18,9 @@ export function Tooltip({ content, children }: TooltipProps) {
         >
             {children}
             {isVisible && (
-                <div className="absolute bottom-full mb-2 px-3 py-1.5 text-xs font-medium text-white bg-slate-900/90 backdrop-blur-sm rounded-lg shadow-xl whitespace-nowrap border border-white/10 animate-in fade-in zoom-in-95 duration-200 pointer-events-none select-none">
+                <div className="absolute top-full mt-2 px-3 py-1.5 text-xs font-medium text-white bg-slate-900/90 backdrop-blur-sm rounded-lg shadow-xl whitespace-nowrap border border-white/10 animate-in fade-in zoom-in-95 duration-200 pointer-events-none select-none z-[100]">
                     {content}
-                    <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900/90 backdrop-blur-sm rotate-45 border-r border-b border-white/10" />
+                    <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900/90 backdrop-blur-sm rotate-45 border-l border-t border-white/10" />
                 </div>
             )}
         </div>
