@@ -1,43 +1,32 @@
-import { chromium } from 'playwright';
+// import { chromium } from 'playwright'; // Removed to fix deployment
+// Using standard fetch + Cheerio (optional, generally just need valid HTML text)
 
 export async function scrapeUrl(url: string) {
-  let browser = null;
   try {
-    browser = await chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'], // Safer for some environments
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+      },
+      next: { revalidate: 0 } // Don't cache for scraper
     });
-    const context = await browser.newContext({
-      viewport: { width: 1280, height: 800 },
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    });
 
-    const page = await context.newPage();
-
-    // Navigate and wait for content
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 120000 });
-
-    // Wait a bit for dynamic content (basic heuristic)
-    try {
-      await page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => { });
-    } catch (e) {
-      // Ignore timeout on network idle, it's optional
+    if (!response.ok) {
+      throw new Error(`Failed to fetch page: ${response.status} ${response.statusText}`);
     }
 
-    // Extract HTML
-    const html = await page.content();
+    const html = await response.text();
 
-    // Take screenshot (viewport only to save size, formatted as jpeg for compression)
-    const screenshotBuffer = await page.screenshot({ type: 'jpeg', quality: 60, fullPage: false });
-    const screenshot = `data:image/jpeg;base64,${screenshotBuffer.toString('base64')}`;
+    // Return empty screenshot or null since we aren't using a browser
+    // The frontend handles missing screenshots gracefully
+    return {
+      html,
+      screenshot: null
+    };
 
-    return { html, screenshot };
   } catch (error) {
     console.error('Scraping failed:', error);
     throw new Error(`Failed to scrape URL: ${error instanceof Error ? error.message : String(error)}`);
-  } finally {
-    if (browser) {
-      await browser.close();
-    }
   }
 }
+
