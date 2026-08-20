@@ -74,6 +74,16 @@ export function analyzeJsx(code: string): JsxAnalysis {
     };
   }
 
+  const parseErrors = Array.isArray(ast.errors) ? ast.errors : [];
+  if (parseErrors.length) {
+    return {
+      tree: [],
+      instrumented: code,
+      componentName: null,
+      warnings: parseErrors.map((error) => error.message || "JSX parse error"),
+    };
+  }
+
   const roots: ComponentTreeNode[] = [];
   let componentName: string | null = null;
 

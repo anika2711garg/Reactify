@@ -24,6 +24,7 @@ import {
   useInsertionEffect,
   useSyncExternalStore,
 } from "react";
+import { repairGeneratedJsx, stripTypescript } from "@/lib/ai/contract";
 import { analyzeJsx } from "@/lib/parser/jsx-tree";
 
 interface LivePreviewProps {
@@ -53,14 +54,16 @@ const scope = {
 };
 
 export function transformPreviewCode(input: string) {
-  const analysis = analyzeJsx(input);
-  let src = analysis.instrumented || input || "";
+  const cleaned = stripTypescript(repairGeneratedJsx(input || ""));
+  const analysis = analyzeJsx(cleaned);
+  let src = analysis.warnings.some((warning) => /parse|unexpected|token/i.test(warning))
+    ? cleaned
+    : analysis.instrumented || cleaned;
 
   src = src.replace(/```[\s\S]*?```/g, (block) =>
     block.replace(/```[a-zA-Z]*\n?/, "").replace(/```/, "")
   );
   src = src.replace(/^\s*(javascript|js|tsx|ts|jsx)\s*\n/i, "");
-  src = src.replace(/["']use client["'];?\s*/g, "");
   src = src.replace(/import\s+(?:(?:\w+|[\w\s{},*]+)\s+from\s+)?['"][^'"]+['"];?/g, "");
 
   if (src.match(/export\s+default\s+function\s*\(/)) {
@@ -70,10 +73,7 @@ export function transformPreviewCode(input: string) {
   }
 
   src = src.replace(/^export\s+/gm, "");
-  src = src.replace(/interface\s+\w+\s*\{[\s\S]*?\}\s*/g, "");
-  src = src.replace(/type\s+\w+\s*=\s*[\s\S]*?;/g, "");
-  src = src.replace(/\)\s*:\s*[\w.<>\[\]|&\s]+\s*\{/g, ") {");
-  src = src.replace(/:\s*[\w.<>\[\]|&\s]+(?=[=;,)])/g, "");
+  src = stripTypescript(src);
   src = src.replace(/\sclass=/g, " className=");
   src = src.replace(/\sfor=/g, " htmlFor=");
   src = src.replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, "");

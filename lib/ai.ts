@@ -13,11 +13,11 @@ const GROQ_MODELS = [
 
 const GEMINI_MODELS = [
   process.env.GEMINI_MODEL,
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
   "gemini-3.6-flash",
   "gemini-3.5-flash",
-  "gemini-2.5-flash",
   "gemini-2.0-flash",
-  "gemini-1.5-flash",
 ].filter((model): model is string => Boolean(model));
 
 function unique(models: string[]) {
@@ -25,20 +25,24 @@ function unique(models: string[]) {
 }
 
 function errorText(error: unknown) {
-  if (error instanceof Error) return `${error.message} ${JSON.stringify((error as { error?: unknown }).error ?? "")}`;
+  if (error instanceof Error) return error.message;
   return String(error);
 }
 
-function isUnavailableModel(error: unknown) {
-  return /404|not found|decommissioned|no longer available|does not exist|model_not_found|unknown model/i.test(
-    errorText(error)
-  );
-}
+async function tryModels<T>(label: string, models: string[], run: (model: string) => Promise<T>) {
+  let lastError: unknown;
 
-function isProviderExhausted(error: unknown) {
-  return /429|rate limit|quota|resource.?exhausted|insufficient|credits|billing|too many requests|limit exceeded|capacity/i.test(
-    errorText(error)
-  );
+  for (const model of unique(models)) {
+    try {
+      console.log(`Attempting ${label} with ${model}...`);
+      return await run(model);
+    } catch (error) {
+      lastError = error;
+      console.warn(`${label} ${model} failed: ${errorText(error)}`);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(`${label} generation failed`);
 }
 
 function groqClient(apiKey: string) {
@@ -54,66 +58,30 @@ function geminiClient(apiKey: string) {
 
 async function generateWithGroq(messages: any[], temperature: number, apiKey: string) {
   const client = groqClient(apiKey);
-  let lastError: unknown;
-
-  for (const model of unique(GROQ_MODELS)) {
-    try {
-      console.log(`Attempting generation with Groq (${model})...`);
-      const completion = await client.chat.completions.create({
-        model,
-        messages,
-        temperature,
-        max_tokens: 8192,
-      });
-      return completion.choices[0]?.message?.content || "";
-    } catch (error) {
-      lastError = error;
-      if (isProviderExhausted(error)) {
-        console.warn("Groq quota or rate limit reached. Switching provider...");
-        throw error;
-      }
-      if (isUnavailableModel(error)) {
-        console.warn(`Groq model unavailable: ${model}`);
-        continue;
-      }
-      throw error;
-    }
-  }
-
-  throw lastError instanceof Error ? lastError : new Error("Groq generation failed");
+  return tryModels("Groq", GROQ_MODELS, async (model) => {
+    const completion = await client.chat.completions.create({
+      model,
+      messages,
+      temperature,
+      max_tokens: 8192,
+    });
+    return completion.choices[0]?.message?.content || "";
+  });
 }
 
 async function generateWithGemini(prompt: string, temperature: number, apiKey: string) {
   const client = geminiClient(apiKey);
-  let lastError: unknown;
-
-  for (const modelName of unique(GEMINI_MODELS)) {
-    try {
-      console.log(`Attempting generation with Gemini (${modelName})...`);
-      const model = client.getGenerativeModel({ model: modelName });
-      const result = await model.generateContent({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature,
-          maxOutputTokens: 8192,
-        },
-      });
-      return result.response.text();
-    } catch (error) {
-      lastError = error;
-      if (isProviderExhausted(error)) {
-        console.warn("Gemini quota or rate limit reached. Switching provider...");
-        throw error;
-      }
-      if (isUnavailableModel(error)) {
-        console.warn(`Gemini model unavailable: ${modelName}`);
-        continue;
-      }
-      throw error;
-    }
-  }
-
-  throw lastError instanceof Error ? lastError : new Error("Gemini generation failed");
+  return tryModels("Gemini", GEMINI_MODELS, async (modelName) => {
+    const model = client.getGenerativeModel({ model: modelName });
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature,
+        maxOutputTokens: 8192,
+      },
+    });
+    return result.response.text();
+  });
 }
 
 async function generateWithGeminiImage(
@@ -124,40 +92,22 @@ async function generateWithGeminiImage(
   apiKey: string
 ) {
   const client = geminiClient(apiKey);
-  let lastError: unknown;
-
-  for (const modelName of unique(GEMINI_MODELS)) {
-    try {
-      console.log(`Attempting screenshot generation with Gemini (${modelName})...`);
-      const model = client.getGenerativeModel({ model: modelName });
-      const result = await model.generateContent({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: prompt }, { inlineData: { mimeType, data: base64 } }],
-          },
-        ],
-        generationConfig: {
-          temperature,
-          maxOutputTokens: 8192,
+  return tryModels("Gemini vision", GEMINI_MODELS, async (modelName) => {
+    const model = client.getGenerativeModel({ model: modelName });
+    const result = await model.generateContent({
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: prompt }, { inlineData: { mimeType, data: base64 } }],
         },
-      });
-      return result.response.text();
-    } catch (error) {
-      lastError = error;
-      if (isProviderExhausted(error)) {
-        console.warn("Gemini vision quota or rate limit reached.");
-        throw error;
-      }
-      if (isUnavailableModel(error)) {
-        console.warn(`Gemini vision model unavailable: ${modelName}`);
-        continue;
-      }
-      throw error;
-    }
-  }
-
-  throw lastError instanceof Error ? lastError : new Error("Gemini screenshot generation failed");
+      ],
+      generationConfig: {
+        temperature,
+        maxOutputTokens: 8192,
+      },
+    });
+    return result.response.text();
+  });
 }
 
 function geminiPromptFromMessages(messages: any[]) {
@@ -193,9 +143,8 @@ export async function generateWithFallback(messages: any[], temperature: number 
       }
     } catch (error) {
       lastError = error;
-      const reason = error instanceof Error ? error.message : String(error);
       if (next) {
-        console.warn(`${provider} failed (${reason}). Switching to ${next}...`);
+        console.warn(`${provider} failed. Switching to ${next}...`);
         continue;
       }
       throw error;
@@ -211,12 +160,34 @@ export async function generateFromImage(
   base64: string,
   temperature: number = 0.2
 ) {
-  const { googleKey } = getAiKeys();
-  console.log(`API Config: Groq=skipped, Google=${Boolean(googleKey)}`);
+  const { groqKey, googleKey } = getAiKeys();
+  console.log(`API Config: Groq=${Boolean(groqKey)}, Google=${Boolean(googleKey)}`);
 
-  if (!googleKey) {
-    throw new Error("NO_GEMINI_KEY");
+  if (googleKey) {
+    try {
+      return await generateWithGeminiImage(prompt, mimeType, base64, temperature, googleKey);
+    } catch (error) {
+      if (!groqKey) throw error;
+      console.warn("Gemini vision failed. Switching to Groq...");
+    }
   }
 
-  return generateWithGeminiImage(prompt, mimeType, base64, temperature, googleKey);
+  if (groqKey) {
+    return generateWithGroq(
+      [
+        {
+          role: "system",
+          content: "You write production-ready React + Tailwind components. Return only code.",
+        },
+        {
+          role: "user",
+          content: `${prompt}\n\nThe screenshot could not be sent to Gemini. Recreate a polished, realistic interface from the prompt and any HTML hints.`,
+        },
+      ],
+      temperature,
+      groqKey
+    );
+  }
+
+  throw new Error("NO_AI_KEYS");
 }

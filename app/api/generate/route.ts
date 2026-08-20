@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateFromImage, generateWithFallback } from "@/lib/ai";
-import { hasAiKeys, hasGoogleKey } from "@/lib/ai/env";
+import { hasAiKeys } from "@/lib/ai/env";
 import { extractDependencies, publicErrorMessage, sanitizeGeneratedCode } from "@/lib/ai/contract";
 import { parseDataUrl } from "@/lib/images/compress";
 import { analyzeJsx } from "@/lib/parser/jsx-tree";
@@ -59,13 +59,6 @@ export async function POST(req: NextRequest) {
 
     if (!hasHtml && !image) {
       return NextResponse.json({ error: "HTML content or a screenshot is required" }, { status: 400 });
-    }
-
-    if (image && !hasGoogleKey()) {
-      return NextResponse.json(
-        { error: publicErrorMessage(new Error("NO_GEMINI_KEY"), "Screenshot generation is not configured.") },
-        { status: 500 }
-      );
     }
 
     if (!hasAiKeys()) {

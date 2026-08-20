@@ -15,13 +15,34 @@ export interface RefinementResponse {
 
 const KNOWN_DEPENDENCIES = new Set(["react", "react-dom", "lucide-react", "tailwindcss", "clsx", "tailwind-merge"]);
 
+export function repairGeneratedJsx(src: string) {
+  return src
+    .replace(/\{(['"])([^'"\n]*\$\{[^}]+\}[^'"\n]*)\1\}/g, "{`$2`}")
+    .replace(/(['"])([^'"\n]*\$\{[^}]+\}[^'"\n]*)\1/g, "`$2`");
+}
+
+export function stripTypescript(src: string) {
+  return src
+    .replace(/["']use client["'];?\s*/g, "")
+    .replace(/interface\s+\w+\s*\{[\s\S]*?\}\s*/g, "")
+    .replace(/type\s+\w+\s*=\s*[\s\S]*?;\s*/g, "")
+    .replace(/\b(useState|useRef|useMemo|useCallback|useReducer|useContext)\s*<[^<>\n]+>/g, "$1")
+    .replace(/\)\s*:\s*[\w.<>\[\]|&\s]+\s*\{/g, ") {")
+    .replace(/(\(|,)\s*(\w+)\s*:\s*(string|number|boolean|any|void|undefined|null|React\.\w+|[\w.]+\[\])(?=\s*[,)=])/g, "$1 $2")
+    .replace(/\s+as\s+(const|[\w.]+)/g, "")
+    .replace(/(\w+)!(\.)/g, "$1$2");
+}
+
 export function sanitizeGeneratedCode(raw: string) {
-  return raw
-    .replace(/```[\w]*\n?/g, "")
-    .replace(/\sclass=/g, " className=")
-    .replace(/\sfor=/g, " htmlFor=")
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .trim();
+  return stripTypescript(
+    repairGeneratedJsx(
+      raw
+        .replace(/```[\w]*\n?/g, "")
+        .replace(/\sclass=/g, " className=")
+        .replace(/\sfor=/g, " htmlFor=")
+        .replace(/<!--[\s\S]*?-->/g, "")
+    )
+  ).trim();
 }
 
 export function extractDependencies(code: string) {
@@ -52,8 +73,11 @@ export function publicErrorMessage(error: unknown, fallback: string) {
   if (/404/i.test(message) && /not found|decommissioned|no longer available|unknown model/i.test(message)) {
     return "The configured AI model is unavailable. Try again or check server model settings.";
   }
+  if (/503|502|500|high demand|overloaded|service unavailable/i.test(message)) {
+    return "The AI service is busy. Reactify will retry the other provider automatically — try Generate again.";
+  }
   if (/timeout|timed out|ETIMEDOUT/i.test(message)) {
     return "The request timed out. Try a smaller page or retry.";
   }
-  return message.slice(0, 220);
+  return fallback;
 }
