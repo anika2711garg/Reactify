@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useId } from "react";
 import { cn } from "@/lib/utils";
 
 export function LogoMark({
@@ -10,41 +10,59 @@ export function LogoMark({
   className?: string;
   size?: number;
 }) {
+  const uid = useId().replace(/:/g, "");
+
   return (
     <span
-      className={cn(
-        "logo-mark relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-[12px] shadow-[0_0_0_1px_rgba(168,85,247,0.28)]",
-        className
-      )}
+      className={cn("logo-mark relative inline-flex shrink-0 items-center justify-center", className)}
       style={{ width: size, height: size }}
+      aria-hidden
     >
-      <img
-        src="/reactify-mark.png"
-        alt=""
-        width={size}
-        height={size}
-        className="h-full w-full object-cover"
-      />
+      <svg viewBox="0 0 48 48" className="h-full w-full" fill="none">
+        <defs>
+          <linearGradient id={`${uid}-g`} x1="6" y1="4" x2="44" y2="44" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#E9D5FF" />
+            <stop offset="0.45" stopColor="#C084FC" />
+            <stop offset="1" stopColor="#7C3AED" />
+          </linearGradient>
+        </defs>
+        <path
+          className="logo-bracket"
+          d="M13 10 L6 24 L13 38"
+          stroke={`url(#${uid}-g)`}
+          strokeWidth="3.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          className="logo-bracket logo-bracket-r"
+          d="M35 10 L42 24 L35 38"
+          stroke={`url(#${uid}-g)`}
+          strokeWidth="3.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          className="logo-bolt"
+          d="M26 7.5 L16 23.5 H23.2 L19.2 40.5 L33.8 20.8 H26.6 L30.4 7.5 Z"
+          fill={`url(#${uid}-g)`}
+        />
+      </svg>
     </span>
   );
 }
 
 export function Wordmark({ className }: { className?: string }) {
   return (
-    <span className={cn("inline-flex items-baseline font-semibold tracking-[-0.04em] text-ink", className)}>
-      React
-      <span className="relative mx-[0.01em] inline-flex h-[1em] w-[0.24em] items-end justify-center">
-        <span className="logo-idot absolute top-[0.1em] h-[0.18em] w-[0.18em] rounded-[2px] bg-accent" />
-        <span className="mb-[0.04em] h-[0.58em] w-[0.115em] rounded-[1px] bg-current" />
-      </span>
-      fy
+    <span className={cn("font-semibold tracking-[-0.045em] text-ink", className)}>
+      Reactify
     </span>
   );
 }
 
 export function BrandLockup({
   className,
-  markSize = 36,
+  markSize = 32,
 }: {
   className?: string;
   markSize?: number;
@@ -52,8 +70,7 @@ export function BrandLockup({
   return (
     <span className={cn("inline-flex items-center gap-2.5", className)}>
       <LogoMark size={markSize} />
-      <span className="hidden h-5 w-px bg-stroke sm:block" />
-      <Wordmark className="hidden text-[17px] sm:inline-flex" />
+      <Wordmark className="text-[17px]" />
     </span>
   );
 }
