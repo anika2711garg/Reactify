@@ -7,8 +7,7 @@ import { HistoryGallery } from "@/components/history/HistoryGallery";
 import { AppShell } from "@/components/layout/AppShell";
 import { SettingsPanel } from "@/components/settings/SettingsPanel";
 import { Workspace } from "@/components/workspace/Workspace";
-import { AppProvider, useApp } from "@/lib/app-context";
-import { ThemeProvider } from "@/lib/theme";
+import { useApp } from "@/lib/app-context";
 
 function RoutedView() {
   const { view } = useApp();
@@ -35,15 +34,13 @@ function RoutedView() {
 
 export default function Home() {
   return (
-    <ThemeProvider>
-      <AppProvider>
-        <AppShell>
-          <RoutedView />
-        </AppShell>
-        <div className="hidden">
-          <Safelist />
-        </div>
-      </AppProvider>
-    </ThemeProvider>
+    <>
+      <AppShell>
+        <RoutedView />
+      </AppShell>
+      <div className="hidden">
+        <Safelist />
+      </div>
+    </>
   );
 }

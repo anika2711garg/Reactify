@@ -55,7 +55,7 @@ export function Sidebar() {
                 active={active}
                 onClick={() => {
                   if (item.id === "new") startNew();
-                  else if (item.id === "workspace") setView(generatedCode ? "workspace" : "home");
+                  else if (item.id === "workspace") setView(generatedCode ? "workspace" : "history");
                   else setView(item.id);
                 }}
               >

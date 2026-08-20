@@ -17,12 +17,24 @@ function applyTheme(theme: Theme) {
   document.documentElement.style.colorScheme = theme;
 }
 
+function readTheme(): Theme {
+  if (typeof document === "undefined") return "dark";
+  const attr = document.documentElement.dataset.theme;
+  if (attr === "light" || attr === "dark") return attr;
+  try {
+    const stored = window.localStorage.getItem("reactify.theme");
+    if (stored === "light" || stored === "dark") return stored;
+  } catch {
+    return "dark";
+  }
+  return "dark";
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("dark");
+  const [theme, setThemeState] = useState<Theme>(readTheme);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem("reactify.theme");
-    const next = stored === "light" || stored === "dark" ? stored : "dark";
+    const next = readTheme();
     setThemeState(next);
     applyTheme(next);
   }, []);

@@ -2,10 +2,10 @@
 
 import React from "react";
 import { motion, useReducedMotion } from "framer-motion";
+import { Mail } from "lucide-react";
 import { AdvancedSettings } from "@/components/generator/AdvancedSettings";
 import { InputCommand } from "@/components/generator/InputCommand";
 import { StyleSelector } from "@/components/generator/StyleSelector";
-import { LogoMark, Wordmark } from "@/components/layout/Logo";
 import { useApp } from "@/lib/app-context";
 
 const ease = [0.22, 1, 0.36, 1] as const;
@@ -30,11 +30,6 @@ export function HomeState() {
         variants={{ show: { transition: { staggerChildren: reduce ? 0 : 0.08 } } }}
         className="relative flex w-full max-w-4xl flex-col items-center text-center"
       >
-        <motion.div variants={fadeUp} className="mb-6 flex flex-col items-center gap-3">
-          <LogoMark size={72} className="rounded-[18px]" />
-          <Wordmark className="text-2xl sm:text-3xl" />
-        </motion.div>
-
         <motion.h1
           variants={fadeUp}
           className="max-w-4xl text-[42px] font-semibold leading-[1.05] tracking-[-0.04em] text-ink sm:text-6xl md:text-[72px]"
@@ -56,6 +51,15 @@ export function HomeState() {
         <motion.div variants={fadeUp} className="mt-6 w-full">
           <AdvancedSettings value={advanced} onChange={setAdvanced} />
         </motion.div>
+
+        <motion.a
+          variants={fadeUp}
+          href="mailto:anika7work@gmail.com"
+          className="mt-8 inline-flex items-center gap-2 text-sm text-muted transition-colors duration-200 hover:text-ink"
+        >
+          <Mail className="h-4 w-4 text-accent" />
+          Questions? anika7work@gmail.com
+        </motion.a>
       </motion.div>
     </div>
   );
