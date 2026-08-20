@@ -1,9 +1,20 @@
 import OpenAI from "openai";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getAiKeys } from "@/lib/ai/env";
 
-export const MODEL_GROQ = "llama-3.3-70b-versatile";
-export const MODEL_GEMINI = "gemini-2.5-flash";
+export const MODEL_GROQ = "openai/gpt-oss-20b";
+export const MODEL_GEMINI = "gemini-3.6-flash";
+
+const DEAD_MODELS = new Set([
+  "gemini-1.5-flash",
+  "gemini-1.5-pro",
+  "gemini-2.0-flash",
+  "gemini-2.0-flash-001",
+  "gemini-2.0-flash-lite",
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
+  "llama-3.1-8b-instant",
+  "llama-3.1-70b-versatile",
+]);
 
 const GROQ_MODELS = [
   process.env.GROQ_MODEL,
@@ -11,15 +22,14 @@ const GROQ_MODELS = [
   "openai/gpt-oss-120b",
   "meta-llama/llama-4-scout-17b-16e-instruct",
   "llama-3.3-70b-versatile",
-].filter((model): model is string => Boolean(model));
+].filter((model): model is string => Boolean(model) && !DEAD_MODELS.has(model));
 
 const GEMINI_MODELS = [
   process.env.GEMINI_MODEL,
   "gemini-3.6-flash",
   "gemini-3.5-flash",
   "gemini-3.5-flash-lite",
-  "gemini-2.0-flash",
-].filter((model): model is string => Boolean(model));
+].filter((model): model is string => Boolean(model) && !DEAD_MODELS.has(model));
 
 function unique(models: string[]) {
   return [...new Set(models)];
@@ -30,16 +40,27 @@ function errorText(error: unknown) {
   return String(error);
 }
 
+function isTransient(error: unknown) {
+  return /503|502|429|high demand|overloaded|unavailable|try again/i.test(errorText(error));
+}
+
 async function tryModels<T>(label: string, models: string[], run: (model: string) => Promise<T>) {
   let lastError: unknown;
 
   for (const model of unique(models)) {
-    try {
-      console.log(`Attempting ${label} with ${model}...`);
-      return await run(model);
-    } catch (error) {
-      lastError = error;
-      console.warn(`${label} ${model} failed: ${errorText(error)}`);
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        console.log(`Attempting ${label} with ${model}...`);
+        return await run(model);
+      } catch (error) {
+        lastError = error;
+        console.warn(`${label} ${model} failed: ${errorText(error)}`);
+        if (isTransient(error) && attempt === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 600));
+          continue;
+        }
+        break;
+      }
     }
   }
 
@@ -51,10 +72,6 @@ function groqClient(apiKey: string) {
     apiKey,
     baseURL: "https://api.groq.com/openai/v1",
   });
-}
-
-function geminiClient(apiKey: string) {
-  return new GoogleGenerativeAI(apiKey);
 }
 
 async function generateWithGroq(messages: any[], temperature: number, apiKey: string) {
@@ -70,19 +87,39 @@ async function generateWithGroq(messages: any[], temperature: number, apiKey: st
   });
 }
 
+async function geminiGenerate(
+  apiKey: string,
+  modelName: string,
+  parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }>,
+  temperature: number
+) {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts }],
+        generationConfig: { temperature, maxOutputTokens: 8192 },
+      }),
+    }
+  );
+  const data = (await response.json()) as {
+    error?: { message?: string };
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+  };
+  if (!response.ok) {
+    throw new Error(data.error?.message || `Gemini ${modelName} failed (${response.status})`);
+  }
+  const text = data.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("") || "";
+  if (!text) throw new Error(`Gemini ${modelName} returned empty text`);
+  return text;
+}
+
 async function generateWithGemini(prompt: string, temperature: number, apiKey: string) {
-  const client = geminiClient(apiKey);
-  return tryModels("Gemini", GEMINI_MODELS, async (modelName) => {
-    const model = client.getGenerativeModel({ model: modelName });
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature,
-        maxOutputTokens: 8192,
-      },
-    });
-    return result.response.text();
-  });
+  return tryModels("Gemini", GEMINI_MODELS, (modelName) =>
+    geminiGenerate(apiKey, modelName, [{ text: prompt }], temperature)
+  );
 }
 
 async function generateWithGeminiImage(
@@ -92,23 +129,14 @@ async function generateWithGeminiImage(
   temperature: number,
   apiKey: string
 ) {
-  const client = geminiClient(apiKey);
-  return tryModels("Gemini vision", GEMINI_MODELS, async (modelName) => {
-    const model = client.getGenerativeModel({ model: modelName });
-    const result = await model.generateContent({
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: prompt }, { inlineData: { mimeType, data: base64 } }],
-        },
-      ],
-      generationConfig: {
-        temperature,
-        maxOutputTokens: 8192,
-      },
-    });
-    return result.response.text();
-  });
+  return tryModels("Gemini vision", GEMINI_MODELS, (modelName) =>
+    geminiGenerate(
+      apiKey,
+      modelName,
+      [{ text: prompt }, { inlineData: { mimeType, data: base64 } }],
+      temperature
+    )
+  );
 }
 
 function geminiPromptFromMessages(messages: any[]) {
@@ -176,7 +204,7 @@ export async function generateFromImage(
     try {
       return await generateWithGeminiImage(prompt, mimeType, base64, temperature, googleKey);
     } catch (error) {
-      if (!groqKey) throw error;
+      if (!groqKey) throw toFinalAiError(error);
       console.warn("Gemini vision failed. Switching to Groq...");
     }
   }
