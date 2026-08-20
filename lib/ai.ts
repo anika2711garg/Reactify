@@ -4,7 +4,7 @@ import { getAiKeys } from "@/lib/ai/env";
 export const MODEL_GROQ = "openai/gpt-oss-20b";
 export const MODEL_GEMINI = "gemini-3.6-flash";
 
-const DEAD_MODELS = new Set([
+const DEAD_MODELS: ReadonlySet<string> = new Set([
   "gemini-1.5-flash",
   "gemini-1.5-pro",
   "gemini-2.0-flash",
@@ -16,24 +16,33 @@ const DEAD_MODELS = new Set([
   "llama-3.1-70b-versatile",
 ]);
 
-function liveModels(preferred: string | undefined, fallbacks: string[]) {
+function liveModels(preferred: string | undefined, fallbacks: readonly string[]): string[] {
   const models: string[] = [];
-  const chosen = preferred?.trim();
-  if (chosen && !DEAD_MODELS.has(chosen)) models.push(chosen);
-  for (const model of fallbacks) {
-    if (!DEAD_MODELS.has(model) && !models.includes(model)) models.push(model);
+
+  if (typeof preferred === "string") {
+    const chosen = preferred.trim();
+    if (chosen.length > 0 && !DEAD_MODELS.has(chosen)) {
+      models.push(chosen);
+    }
   }
+
+  for (const model of fallbacks) {
+    if (!DEAD_MODELS.has(model) && !models.includes(model)) {
+      models.push(model);
+    }
+  }
+
   return models;
 }
 
-const GROQ_MODELS = liveModels(process.env.GROQ_MODEL, [
+const GROQ_MODELS: string[] = liveModels(process.env.GROQ_MODEL, [
   "openai/gpt-oss-20b",
   "openai/gpt-oss-120b",
   "meta-llama/llama-4-scout-17b-16e-instruct",
   "llama-3.3-70b-versatile",
 ]);
 
-const GEMINI_MODELS = liveModels(process.env.GEMINI_MODEL, [
+const GEMINI_MODELS: string[] = liveModels(process.env.GEMINI_MODEL, [
   "gemini-3.6-flash",
   "gemini-3.5-flash",
   "gemini-3.5-flash-lite",
