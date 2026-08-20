@@ -53,7 +53,7 @@ export function GenerationStage({ stage, screenshot, sectionLabels = [] }: Gener
 
         {labels.slice(0, Math.min(labels.length, stage + 2)).map((label, index) => (
           <div
-            key={label}
+            key={`${label}-${index}`}
             className="box-in absolute left-[8%] right-[8%] rounded-lg border border-accent/40 bg-accent/5"
             style={{
               top: `${12 + index * 16}%`,

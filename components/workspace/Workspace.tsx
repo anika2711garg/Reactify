@@ -128,7 +128,11 @@ export function Workspace() {
           <GenerationStage
             stage={generationStage}
             screenshot={screenshot || uploadedImage}
-            sectionLabels={sections.map((section) => section.name)}
+            sectionLabels={sections.map((section, index) =>
+              sections.filter((item) => item.name === section.name).length > 1
+                ? `${section.name} ${index + 1}`
+                : section.name
+            )}
           />
         </div>
       ) : (
