@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import {
   LiveProvider,
   LiveError,
@@ -9,8 +9,8 @@ import {
 import * as LucideIcons from "lucide-react";
 import {
   useState,
-  useEffect,
-  useRef,
+  useEffect as useReactEffect,
+  useRef as useReactRef,
   useCallback,
   useMemo as useReactMemo,
   useReducer,
@@ -24,16 +24,19 @@ import {
   useInsertionEffect,
   useSyncExternalStore,
 } from "react";
+import { analyzeJsx } from "@/lib/parser/jsx-tree";
 
 interface LivePreviewProps {
   code: string;
+  selectedPath?: string | null;
+  onSelectPath?: (path: string | null) => void;
 }
 
 const scope = {
   React,
   useState,
-  useEffect,
-  useRef,
+  useEffect: useReactEffect,
+  useRef: useReactRef,
   useCallback,
   useMemo: useReactMemo,
   useReducer,
@@ -50,7 +53,8 @@ const scope = {
 };
 
 export function transformPreviewCode(input: string) {
-  let src = input || "";
+  const analysis = analyzeJsx(input);
+  let src = analysis.instrumented || input || "";
 
   src = src.replace(/```[\s\S]*?```/g, (block) =>
     block.replace(/```[a-zA-Z]*\n?/, "").replace(/```/, "")
@@ -79,7 +83,7 @@ export function transformPreviewCode(input: string) {
   const constMatch = src.match(/const\s+(\w+)\s*=\s*[:(]?/);
   let componentName = src.includes("const GeneratedComponent")
     ? "GeneratedComponent"
-    : fnMatch?.[1] || constMatch?.[1];
+    : analysis.componentName || fnMatch?.[1] || constMatch?.[1];
 
   if (!componentName) {
     const anyFn = src.match(/(?:function|const)\s+(\w+)/);
@@ -105,11 +109,43 @@ try {
 `;
 }
 
-export function LivePreview({ code }: LivePreviewProps) {
+export function LivePreview({ code, selectedPath, onSelectPath }: LivePreviewProps) {
   const processedCode = useMemo(() => transformPreviewCode(code), [code]);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+
+    root.querySelectorAll("[data-rf-selected='true']").forEach((node) => {
+      node.removeAttribute("data-rf-selected");
+      (node as HTMLElement).style.outline = "";
+      (node as HTMLElement).style.outlineOffset = "";
+    });
+
+    if (!selectedPath) return;
+    const match = root.querySelector(`[data-rf-path="${selectedPath}"]`) as HTMLElement | null;
+    if (match) {
+      match.setAttribute("data-rf-selected", "true");
+      match.style.outline = "2px solid #a855f7";
+      match.style.outlineOffset = "2px";
+      match.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }, [selectedPath, processedCode]);
 
   return (
-    <div className="h-full w-full overflow-auto bg-white text-slate-950">
+    <div
+      ref={rootRef}
+      className="h-full w-full overflow-auto bg-white text-slate-950"
+      onClick={(event) => {
+        const target = (event.target as HTMLElement).closest("[data-rf-path]") as HTMLElement | null;
+        if (target?.dataset.rfPath) {
+          event.preventDefault();
+          event.stopPropagation();
+          onSelectPath?.(target.dataset.rfPath);
+        }
+      }}
+    >
       <LiveProvider code={processedCode} scope={scope} noInline>
         <div className="min-h-full">
           <ReactLivePreview />

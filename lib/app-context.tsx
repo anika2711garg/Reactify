@@ -6,6 +6,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useReducer,
   useState,
 } from "react";
 import type { Section } from "@/lib/parse";
@@ -27,6 +28,13 @@ import type {
 } from "@/lib/types";
 import { DEFAULT_ADVANCED } from "@/lib/types";
 import { buildRequirements, getDomain } from "@/lib/utils";
+import {
+  EMPTY_REVISIONS,
+  revisionReducer,
+  type Revision,
+} from "@/lib/history/revisions";
+import type { ViewportPreset } from "@/lib/preview/viewports";
+import { analyzeJsx, findTreeNode, type ComponentTreeNode } from "@/lib/parser/jsx-tree";
 
 interface AppContextValue {
   view: AppView;
@@ -46,6 +54,21 @@ interface AppContextValue {
   selectedSection: Section | null;
   generatedCode: string;
   setGeneratedCode: (code: string) => void;
+  commitCode: (code: string, label: string) => void;
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  revisions: Revision[];
+  revisionIndex: number;
+  selectedElementId: string | null;
+  setSelectedElementId: (id: string | null) => void;
+  componentTree: ComponentTreeNode[];
+  treeWarnings: string[];
+  viewportPreset: ViewportPreset;
+  setViewportPreset: (preset: ViewportPreset) => void;
+  viewportWidth: number;
+  setViewportWidth: (width: number) => void;
   currentId: string | null;
   history: HistoryItem[];
   isScraping: boolean;
@@ -88,6 +111,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [sections, setSections] = useState<Section[]>([]);
   const [selectedSection, setSelectedSection] = useState<Section | null>(null);
   const [generatedCode, setGeneratedCode] = useState("");
+  const [revisionState, dispatchRevision] = useReducer(revisionReducer, EMPTY_REVISIONS);
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const [viewportPreset, setViewportPreset] = useState<ViewportPreset>("desktop");
+  const [viewportWidth, setViewportWidth] = useState(1440);
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [isScraping, setIsScraping] = useState(false);
@@ -151,6 +178,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSections([]);
     setSelectedSection(null);
     setGeneratedCode("");
+    dispatchRevision({ type: "reset" });
+    setSelectedElementId(null);
     setCurrentId(null);
     setError("");
     setGenerationStage(0);
@@ -185,6 +214,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (data.error) throw new Error(data.error);
 
         setGeneratedCode(data.code);
+        dispatchRevision({ type: "commit", code: data.code, label: "Initial generation" });
         persistGeneration(data.code, section, nextUrl, nextScreenshot, itemId);
         setView("workspace");
       } catch (err) {
@@ -278,11 +308,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const res = await fetch("/api/iterate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ currentCode: generatedCode, instruction }),
+          body: JSON.stringify({
+            currentCode: generatedCode,
+            instruction,
+            selectedPath: selectedElementId,
+            selectedName: selectedElementId
+              ? findTreeNode(analyzeJsx(generatedCode).tree, selectedElementId)?.name
+              : undefined,
+          }),
         });
         const data = await res.json();
         if (!data.code) throw new Error(data.error || "Failed to update component");
         setGeneratedCode(data.code);
+        dispatchRevision({ type: "commit", code: data.code, label: instruction.slice(0, 80) });
         if (selectedSection) {
           persistGeneration(data.code, selectedSection, url, screenshot || uploadedImage, currentId || undefined);
         }
@@ -292,7 +330,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setIsIterating(false);
       }
     },
-    [currentId, generatedCode, persistGeneration, screenshot, selectedSection, uploadedImage, url]
+    [currentId, generatedCode, persistGeneration, screenshot, selectedElementId, selectedSection, uploadedImage, url]
   );
 
   const openHistoryItem = useCallback((item: HistoryItem) => {
@@ -300,6 +338,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setUrl(item.url);
     setScreenshot(item.thumbnail);
     setGeneratedCode(item.code);
+    dispatchRevision({
+      type: "reset",
+      revision: {
+        id: item.id,
+        code: item.code,
+        label: "Restored from history",
+        createdAt: item.updatedAt,
+      },
+    });
+    setSelectedElementId(null);
     setStyle(item.style);
     setSelectedSection({
       id: item.id,
@@ -346,6 +394,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setHistory(toggleSavedItem(id));
   }, []);
 
+  const commitCode = useCallback((code: string, label: string) => {
+    setGeneratedCode(code);
+    dispatchRevision({ type: "commit", code, label });
+  }, []);
+
+  const undo = useCallback(() => {
+    const previous = revisionState.items[revisionState.index - 1];
+    if (!previous) return;
+    dispatchRevision({ type: "undo" });
+    setGeneratedCode(previous.code);
+  }, [revisionState.index, revisionState.items]);
+
+  const redo = useCallback(() => {
+    const next = revisionState.items[revisionState.index + 1];
+    if (!next) return;
+    dispatchRevision({ type: "redo" });
+    setGeneratedCode(next.code);
+  }, [revisionState.index, revisionState.items]);
+
+  const treeAnalysis = useMemo(() => analyzeJsx(generatedCode), [generatedCode]);
+
   const saveCurrent = useCallback(() => {
     if (!currentId) return;
     const items = loadHistory().map((item) =>
@@ -374,6 +443,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       selectedSection,
       generatedCode,
       setGeneratedCode,
+      commitCode,
+      undo,
+      redo,
+      canUndo: revisionState.index > 0,
+      canRedo: revisionState.index >= 0 && revisionState.index < revisionState.items.length - 1,
+      revisions: revisionState.items,
+      revisionIndex: revisionState.index,
+      selectedElementId,
+      setSelectedElementId,
+      componentTree: treeAnalysis.tree,
+      treeWarnings: treeAnalysis.warnings,
+      viewportPreset,
+      setViewportPreset,
+      viewportWidth,
+      setViewportWidth,
       currentId,
       history,
       isScraping,
@@ -394,6 +478,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       advanced,
+      commitCode,
       currentId,
       duplicateHistoryItem,
       error,
@@ -408,18 +493,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isIterating,
       isScraping,
       openHistoryItem,
+      redo,
       removeHistoryItem,
+      revisionState.index,
+      revisionState.items,
       saveCurrent,
       screenshot,
       sections,
+      selectedElementId,
       selectedSection,
       setAdvanced,
       startNew,
       style,
       toggleSaved,
+      treeAnalysis.tree,
+      treeAnalysis.warnings,
+      undo,
       uploadedImage,
       url,
       view,
+      viewportPreset,
+      viewportWidth,
     ]
   );
 

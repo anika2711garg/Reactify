@@ -1,76 +1,80 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { generateWithFallback } from '@/lib/ai';
+import { NextRequest, NextResponse } from "next/server";
+import { generateWithFallback } from "@/lib/ai";
+import { extractDependencies, publicErrorMessage, sanitizeGeneratedCode } from "@/lib/ai/contract";
+import { analyzeJsx } from "@/lib/parser/jsx-tree";
 
 const SYSTEM_PROMPT = `
 You are an expert Frontend Engineer and React Refactoring specialist.
 Your goal is to MODIFY existing React code based on user instructions.
 
 **STRICT REQUIREMENTS:**
-1. **Output:** Return ONLY the updated React code (JavaScript/JSX). No markdown fences. No TypeScript.
-2. **Instruction Following:**
-   - **PRIORITY #1:** You MUST follow the user's instruction. If they say "make it green", MAKE IT GREEN.
-   - If the instruction contradicts the existing design, favor the instruction.
-   - If the user asks for a style change (color, spacing, layout), apply it boldly and correctly using Tailwind classes (e.g., bg-green-500, text-green-900).
-   - **Do NOT** explain your changes. Just return code.
-3. **Code Quality:**
-   - PRESERVE existing functionality unless asked to change it.
-   - Maintain the same tech stack (React + Tailwind + Lucide).
-   - **Do NOT** use react-icons (e.g., no FiSearch, FaHome). Use ONLY lucide-react.
-   - Ensure the code is complete, valid, and production-ready.
-   - Do NOT introduce syntax errors.
-   - Use 'export default function GeneratedComponent' or similar consistent naming.
+1. Return ONLY the updated React code (JavaScript/JSX). No markdown fences. No TypeScript.
+2. Follow the user's instruction as PRIORITY #1.
+3. Preserve existing functionality unless asked to change it.
+4. Maintain React + Tailwind + lucide-react.
+5. If the user asks to change one element, keep unrelated sections intact.
+6. Use semantic tags so the component tree stays meaningful.
+7. Use 'export default function GeneratedComponent' or similar consistent naming.
 
 **INPUT:**
 - Current Code
 - User Instruction
+- Optional selected element path/name
 
 **OUTPUT:**
-- The fully updated component code. Only code.
+The fully updated component code. Only code.
 `;
 
 export async function POST(req: NextRequest) {
-    try {
-        const { currentCode, instruction } = await req.json();
+  try {
+    const { currentCode, instruction, selectedPath, selectedName } = await req.json();
 
-        if (!currentCode || !instruction) {
-            return NextResponse.json({ error: 'Current code and instruction are required' }, { status: 400 });
-        }
+    if (!currentCode || !instruction) {
+      return NextResponse.json({ error: "Current code and instruction are required" }, { status: 400 });
+    }
 
-        if (!process.env.GROQ_API_KEY && !process.env.GOOGLE_API_KEY) {
-            return NextResponse.json({ error: 'API Key is missing' }, { status: 500 });
-        }
+    if (!process.env.GROQ_API_KEY && !process.env.GOOGLE_API_KEY) {
+      return NextResponse.json({ error: "AI service is not configured on the server." }, { status: 500 });
+    }
 
-        const userMessage = `
+    const focus = selectedPath
+      ? `Focus the change on the element at data-rf-path="${selectedPath}"${selectedName ? ` (${selectedName})` : ""}. Keep other sections stable.`
+      : "";
+
+    const userMessage = `
     EXISTING CODE:
     ${currentCode}
 
     USER INSTRUCTION:
     ${instruction}
+
+    ${focus}
     `;
 
-        let code = await generateWithFallback([
-            { role: 'system', content: SYSTEM_PROMPT },
-            { role: 'user', content: userMessage }
-        ]);
+    const raw = await generateWithFallback([
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: userMessage },
+    ]);
 
-        code = code.replace(/```tsx?/g, '').replace(/```/g, '').trim();
+    const code = sanitizeGeneratedCode(raw);
+    const before = extractDependencies(currentCode);
+    const after = extractDependencies(code);
+    const analysis = analyzeJsx(code);
 
-        return NextResponse.json({ code });
-
-    } catch (error: any) {
-        console.error('AI Iteration Error:', error);
-
-        let errorMessage = error.message || 'Failed to iterate component';
-        // Handle specific 404 (API Config) error
-        if (errorMessage.includes('404') && errorMessage.includes('not found')) {
-            errorMessage = 'Google Generative AI API is not enabled for your project. Please enable it in Google Cloud Console.';
-        } else if (errorMessage.includes('API_KEY')) {
-            errorMessage = 'Invalid Google API Key. Please check your .env.local file.';
-        }
-
-        return NextResponse.json(
-            { error: errorMessage },
-            { status: 500 }
-        );
-    }
+    return NextResponse.json({
+      code,
+      explanation: instruction,
+      affectedSections: selectedName ? [selectedName] : analysis.tree.slice(0, 4).map((node) => node.name),
+      dependenciesAdded: after.filter((item) => !before.includes(item)),
+      dependenciesRemoved: before.filter((item) => !after.includes(item)),
+      dependencies: after,
+      warnings: analysis.warnings,
+      tree: analysis.tree,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: publicErrorMessage(error, "Failed to iterate component") },
+      { status: 500 }
+    );
+  }
 }

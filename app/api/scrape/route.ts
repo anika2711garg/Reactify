@@ -1,39 +1,28 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { scrapeUrl } from '@/lib/scrape';
-import { parseHtml } from '@/lib/parse';
+import { NextRequest, NextResponse } from "next/server";
+import { scrapeUrl } from "@/lib/scrape";
+import { parseHtml } from "@/lib/parse";
+import { publicErrorMessage } from "@/lib/ai/contract";
+import { assertPublicHttpUrl } from "@/lib/scraper/url-guard";
 
 export async function POST(req: NextRequest) {
-    try {
-        const { url } = await req.json();
+  try {
+    const body = await req.json();
+    const url = assertPublicHttpUrl(body.url);
 
-        if (!url || !url.startsWith('http')) {
-            return NextResponse.json({ error: 'Invalid URL' }, { status: 400 });
-        }
+    const { html, screenshot } = await scrapeUrl(url);
+    const sections = parseHtml(html, url);
 
-        // Basic validation to prevent internal network scanning?
-        // Implementation constraint: user asked for public URLs only.
-        if (url.includes('localhost') || url.includes('127.0.0.1')) {
-            return NextResponse.json({ error: 'Localhost URLs are not allowed' }, { status: 400 });
-        }
-
-        console.log(`Scraping: ${url}`);
-        const { html, screenshot } = await scrapeUrl(url);
-
-        console.log(`Parsing sections...`);
-        const sections = parseHtml(html, url);
-
-        return NextResponse.json({
-            success: true,
-            url,
-            sections,
-            screenshot
-        });
-
-    } catch (error) {
-        console.error('API Scrape Error:', error);
-        return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Failed to scrape' },
-            { status: 500 }
-        );
-    }
+    return NextResponse.json({
+      success: true,
+      url,
+      sections,
+      screenshot,
+      warnings: sections.length ? [] : ["No semantic sections were detected. You can still generate from the screenshot."],
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: publicErrorMessage(error, "Failed to scrape that website") },
+      { status: 500 }
+    );
+  }
 }

@@ -18,7 +18,7 @@ export function CodePanel({
   expanded?: boolean;
   onToggleExpand?: () => void;
 }) {
-  const { generatedCode, setGeneratedCode } = useApp();
+  const { generatedCode, setGeneratedCode, commitCode } = useApp();
   const { theme } = useTheme();
   const [tab, setTab] = useState<CodeTab>("component");
   const [copied, setCopied] = useState(false);
@@ -98,6 +98,7 @@ export function CodePanel({
           <textarea
             value={generatedCode}
             onChange={(event) => setGeneratedCode(event.target.value)}
+            onBlur={() => commitCode(generatedCode, "Manual edit")}
             spellCheck={false}
             aria-label="Edit generated component"
             className="h-full w-full resize-none bg-transparent p-4 font-mono text-[12.5px] leading-6 text-ink outline-none"
