@@ -76,6 +76,7 @@ export function iterateComponent(input: {
   instruction: string;
   selectedPath?: string | null;
   selectedName?: string;
+  screenshot?: string;
 }) {
   return postJson<IterateResponse>("/api/iterate", input, "Failed to update component");
 }

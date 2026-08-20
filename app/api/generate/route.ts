@@ -36,7 +36,8 @@ Your goal is to convert raw HTML sections or UI screenshots into **clean, produc
    - NEVER stop mid-attribute. Every className must have a closing quote.
    - Prefer a complete smaller component over a truncated large one.
    - Recreate ONLY the provided section. Do not rebuild the whole site mega-menu.
-   - Keep the file under 80 lines and finish every tag.
+   - Copy every visible word from the source. Never invent "Generated section".
+   - Finish every tag. Up to 120 lines is fine if that is what it takes to finish.
    - Import at most 4 lucide icons and close the import.
 6. **Images:**
    - Recreate visual structure with Tailwind. Use placeholder images only when necessary.
@@ -61,8 +62,8 @@ export async function POST(req: NextRequest) {
   try {
     const { html, requirements, style, screenshot, mode } = await req.json();
     const hasHtml = typeof html === "string" && html.trim().length > 0;
-    const preferImage = mode === "screenshot" || !hasHtml;
-    const image = preferImage && typeof screenshot === "string" ? parseDataUrl(screenshot) : null;
+    const image = typeof screenshot === "string" ? parseDataUrl(screenshot) : null;
+    const preferImage = mode === "screenshot" || Boolean(image && !hasHtml);
 
     if (!hasHtml && !image) {
       return NextResponse.json({ error: "HTML content or a screenshot is required" }, { status: 400 });
@@ -82,11 +83,14 @@ export async function POST(req: NextRequest) {
 
     let raw = "";
 
-    if (image) {
+    if (image && (preferImage || mode === "screenshot")) {
       const prompt = `${SYSTEM_PROMPT}
 
 Reconstruct this screenshot as a complete production-ready React + Tailwind component.
-Match the visual hierarchy, colors, spacing, and typography as closely as possible.
+Match the screenshot as closely as a person comparing them side by side would expect:
+- Copy every visible word exactly (titles, labels, times, buttons, footer).
+- Match background color, accent color, type size, alignment, and spacing.
+- Do not output a generic dark "Generated section" template.
 ${hasHtml ? `Optional structural hints:\n${html.slice(0, 4000)}` : ""}
 ${extras}`;
       raw = await generateFromImage(prompt, image.mimeType, image.base64);
@@ -101,7 +105,11 @@ ${extras}`;
       ]);
     }
 
-    const code = await ensureCompleteCode(sanitizeGeneratedCode(raw));
+    const code = await ensureCompleteCode(
+      sanitizeGeneratedCode(raw),
+      mode === "screenshot" ? "Match the uploaded screenshot exactly" : undefined,
+      image || undefined
+    );
     if (!code) {
       return NextResponse.json({ error: "The model returned empty code. Try again." }, { status: 502 });
     }

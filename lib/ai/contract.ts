@@ -57,6 +57,10 @@ export function sanitizeGeneratedCode(raw: string) {
   ).trim();
 }
 
+export function isPlaceholderComponent(code: string) {
+  return /Generated section|bg-\[#16120f\]|This section is ready\. Use the chat/i.test(code);
+}
+
 export function looksTruncated(code: string) {
   if (!code.trim()) return true;
   const trimmed = code.trim();

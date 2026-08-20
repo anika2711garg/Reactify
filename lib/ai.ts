@@ -46,6 +46,8 @@ const GEMINI_MODELS: string[] = liveModels(process.env.GEMINI_MODEL, [
   "gemini-3.6-flash",
   "gemini-3.5-flash",
   "gemini-3.5-flash-lite",
+  "gemini-3.1-flash-lite",
+  "gemini-3-flash-preview",
 ]);
 
 function unique(models: string[]) {
@@ -150,7 +152,7 @@ async function generateWithGeminiImage(
     geminiGenerate(
       apiKey,
       modelName,
-      [{ text: prompt }, { inlineData: { mimeType, data: base64 } }],
+      [{ inlineData: { mimeType, data: base64 } }, { text: prompt }],
       temperature
     )
   );
@@ -217,31 +219,9 @@ export async function generateFromImage(
   const { groqKey, googleKey } = getAiKeys();
   console.log(`API Config: Groq=${Boolean(groqKey)}, Google=${Boolean(googleKey)}`);
 
-  if (googleKey) {
-    try {
-      return await generateWithGeminiImage(prompt, mimeType, base64, temperature, googleKey);
-    } catch (error) {
-      if (!groqKey) throw toFinalAiError(error);
-      console.warn("Gemini vision failed. Switching to Groq...");
-    }
+  if (!googleKey) {
+    throw new Error("NO_GEMINI_KEY");
   }
 
-  if (groqKey) {
-    return generateWithGroq(
-      [
-        {
-          role: "system",
-          content: "You write production-ready React + Tailwind components. Return only code.",
-        },
-        {
-          role: "user",
-          content: `${prompt}\n\nThe screenshot could not be sent to Gemini. Recreate a polished, realistic interface from the prompt and any HTML hints.`,
-        },
-      ],
-      temperature,
-      groqKey
-    );
-  }
-
-  throw new Error("NO_AI_KEYS");
+  return generateWithGeminiImage(prompt, mimeType, base64, temperature, googleKey);
 }

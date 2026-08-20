@@ -214,7 +214,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         const data = await generateComponent({
           html: section.html,
-          screenshot: mode === "screenshot" ? nextScreenshot || undefined : undefined,
+          screenshot: nextScreenshot || undefined,
           style,
           requirements: buildRequirements(
             "Ensure it is fully responsive and uses modern design.",
@@ -257,6 +257,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setScreenshot(uploadedImage);
       setSections([section]);
       setView("workspace");
+      await generateFromSection(section, "", uploadedImage, undefined, "screenshot");
       return;
     }
 
@@ -305,7 +306,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const handleSelectSection = useCallback(
     async (section: Section) => {
       const reuseId = selectedSection?.id === section.id ? currentId || undefined : undefined;
-      const image = inputMode === "screenshot" ? screenshot || uploadedImage : screenshot;
+      const image = screenshot || uploadedImage;
       await generateFromSection(section, url, image, reuseId, inputMode);
     },
     [currentId, generateFromSection, inputMode, screenshot, selectedSection?.id, uploadedImage, url]
@@ -375,6 +376,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           selectedName: selectedElementId
             ? findTreeNode(localTree, selectedElementId)?.name
             : undefined,
+          screenshot: screenshot || uploadedImage || undefined,
         });
         if (!data.code) throw new Error("Failed to update component");
         if (data.tree?.length) setServerTree(data.tree);
@@ -385,7 +387,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setIsIterating(false);
       }
     },
-    [generatedCode, pendingChange, persistCurrent, selectedElementId]
+    [generatedCode, pendingChange, persistCurrent, screenshot, selectedElementId, uploadedImage]
   );
 
   const openHistoryItem = useCallback((item: HistoryItem) => {

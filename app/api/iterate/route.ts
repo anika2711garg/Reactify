@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateWithFallback } from "@/lib/ai";
+import { generateFromImage, generateWithFallback } from "@/lib/ai";
 import { hasAiKeys } from "@/lib/ai/env";
-import { extractDependencies, publicErrorMessage, sanitizeGeneratedCode } from "@/lib/ai/contract";
+import { extractDependencies, isPlaceholderComponent, publicErrorMessage, sanitizeGeneratedCode } from "@/lib/ai/contract";
 import { ensureCompleteCode, isBrokenCode } from "@/lib/ai/complete";
+import { parseDataUrl } from "@/lib/images/compress";
 import { analyzeJsx } from "@/lib/parser/jsx-tree";
 
 const SYSTEM_PROMPT = `
@@ -24,7 +25,9 @@ The fully updated complete component code. Only code.
 
 export async function POST(req: NextRequest) {
   try {
-    const { currentCode, instruction, selectedPath, selectedName } = await req.json();
+    const { currentCode, instruction, selectedPath, selectedName, screenshot } = await req.json();
+    const image = typeof screenshot === "string" ? parseDataUrl(screenshot) : null;
+    const rematch = /match original|from (the )?screenshot|looks? like the|recreate/i.test(instruction);
 
     if (!currentCode || !instruction) {
       return NextResponse.json({ error: "Current code and instruction are required" }, { status: 400 });
@@ -52,12 +55,27 @@ export async function POST(req: NextRequest) {
     ${focus}
     `;
 
-    const raw = await generateWithFallback([
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: userMessage },
-    ]);
+    let raw = "";
+    if (image && (rematch || isPlaceholderComponent(currentCode) || isBrokenCode(currentCode))) {
+      raw = await generateFromImage(
+        `${SYSTEM_PROMPT}
 
-    const code = await ensureCompleteCode(sanitizeGeneratedCode(raw), instruction);
+Rebuild this screenshot as a complete React + Tailwind component that matches the image.
+Copy every visible word and color. Then apply: ${instruction}
+
+Current code (may be wrong):
+${currentCode.slice(0, 2500)}`,
+        image.mimeType,
+        image.base64
+      );
+    } else {
+      raw = await generateWithFallback([
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: userMessage },
+      ]);
+    }
+
+    const code = await ensureCompleteCode(sanitizeGeneratedCode(raw), instruction, image || undefined);
     if (!code) {
       return NextResponse.json({ error: "The model returned empty code. Try again." }, { status: 502 });
     }

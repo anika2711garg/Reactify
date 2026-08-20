@@ -12,7 +12,7 @@ import { ComponentTree } from "@/components/editor/ComponentTree";
 import { RevisionControls } from "@/components/editor/RevisionControls";
 import { Tabs } from "@/components/ui/Tabs";
 import { useApp } from "@/lib/app-context";
-import { looksTruncated } from "@/lib/ai/contract";
+import { isPlaceholderComponent, looksTruncated } from "@/lib/ai/contract";
 import type { WorkspacePane } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -65,10 +65,11 @@ export function Workspace() {
 
   useEffect(() => {
     if (!generatedCode || isGenerating || isIterating || isScraping) return;
-    if (autoRepairTried.current || !looksTruncated(generatedCode)) return;
+    if (autoRepairTried.current) return;
+    if (!looksTruncated(generatedCode) && !isPlaceholderComponent(generatedCode)) return;
     autoRepairTried.current = true;
     void handleIterate(
-      "Rewrite this into a complete compact React component under 80 lines. Close every import and tag. Keep the visible recipe content.",
+      "Match original more closely. Recreate the uploaded screenshot with the same words, colors, and layout.",
       { autoCommit: true }
     );
   }, [generatedCode, handleIterate, isGenerating, isIterating, isScraping]);
