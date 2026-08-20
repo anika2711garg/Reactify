@@ -171,7 +171,7 @@ export function PreviewCanvas() {
           <div ref={dragRef} className="relative min-h-0 flex-1 bg-white">
             {generatedCode ? (
               <LivePreview
-                key={revision}
+                key={`${revision}-${generatedCode.length}-${generatedCode.slice(0, 40)}`}
                 code={generatedCode}
                 selectedPath={selectedElementId}
                 onSelectPath={setSelectedElementId}

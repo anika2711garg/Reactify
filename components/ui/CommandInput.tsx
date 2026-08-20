@@ -44,7 +44,7 @@ export function CommandInput({
       />
       <button
         type="submit"
-        disabled={disabled || !value.trim()}
+        disabled={disabled || loading || !value.trim()}
         aria-label="Send refinement"
         className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-white transition-all duration-200 hover:bg-[#8b6dff] disabled:cursor-not-allowed disabled:opacity-40"
       >

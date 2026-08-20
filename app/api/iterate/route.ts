@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
       { role: "user", content: userMessage },
     ]);
 
-    const code = await ensureCompleteCode(sanitizeGeneratedCode(raw));
+    const code = await ensureCompleteCode(sanitizeGeneratedCode(raw), instruction);
     if (!code) {
       return NextResponse.json({ error: "The model returned empty code. Try again." }, { status: 502 });
     }

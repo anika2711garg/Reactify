@@ -41,8 +41,9 @@ export function RefinementBar() {
         value={value}
         onChange={setValue}
         onSubmit={() => submit()}
-        disabled={isIterating || !generatedCode}
+        disabled={!generatedCode}
         loading={isIterating}
+        placeholder={isIterating ? "Updating preview…" : undefined}
       />
     </div>
   );

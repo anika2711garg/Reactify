@@ -34,6 +34,7 @@ import {
   type Revision,
 } from "@/lib/history/revisions";
 import type { ViewportPreset } from "@/lib/preview/viewports";
+import { applyLocalInstruction } from "@/lib/ai/local-refine";
 import { analyzeTree, generateComponent, iterateComponent, scrapeWebsite } from "@/lib/api/client";
 import { analyzeJsx, findTreeNode, type ComponentTreeNode } from "@/lib/parser/jsx-tree";
 
@@ -301,13 +302,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const handleIterate = useCallback(
     async (instruction: string) => {
-      if (!generatedCode.trim() || !instruction.trim()) return;
+      if (!instruction.trim()) return;
+      if (!generatedCode.trim()) {
+        setError("Generate a section first, then ask for changes.");
+        return;
+      }
+
+      const local = applyLocalInstruction(generatedCode, instruction);
+      if (local) {
+        setGeneratedCode(local);
+        dispatchRevision({ type: "commit", code: local, label: instruction.slice(0, 80) });
+        if (selectedSection) {
+          persistGeneration(local, selectedSection, url, screenshot || uploadedImage, currentId || undefined);
+        }
+      }
+
       setIsIterating(true);
       setError("");
       try {
-        const localTree = analyzeJsx(generatedCode).tree;
+        const localTree = analyzeJsx(local || generatedCode).tree;
         const data = await iterateComponent({
-          currentCode: generatedCode,
+          currentCode: local || generatedCode,
           instruction,
           selectedPath: selectedElementId,
           selectedName: selectedElementId
@@ -322,7 +337,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           persistGeneration(data.code, selectedSection, url, screenshot || uploadedImage, currentId || undefined);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Refinement failed");
+        if (!local) setError(err instanceof Error ? err.message : "Refinement failed");
       } finally {
         setIsIterating(false);
       }

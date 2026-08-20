@@ -42,7 +42,7 @@ export function isBrokenCode(code: string) {
   return looksTruncated(code) || hasParseProblems(code);
 }
 
-export async function ensureCompleteCode(code: string) {
+export async function ensureCompleteCode(code: string, instruction?: string) {
   const cleaned = sanitizeGeneratedCode(code);
   if (!isBrokenCode(cleaned)) return cleaned;
 
@@ -51,7 +51,9 @@ export async function ensureCompleteCode(code: string) {
       { role: "system", content: REWRITE_PROMPT },
       {
         role: "user",
-        content: `Rewrite this incomplete draft into a finished compact component:\n\n${cleaned.slice(0, 2500)}`,
+        content: `Rewrite this incomplete draft into a finished compact component.${
+          instruction ? ` Also apply: ${instruction}` : ""
+        }\n\n${cleaned.slice(0, 2500)}`,
       },
     ]);
     const repaired = sanitizeGeneratedCode(raw);
