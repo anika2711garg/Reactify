@@ -47,13 +47,11 @@ export function sanitizeGeneratedCode(raw: string) {
 
 export function looksTruncated(code: string) {
   if (!code.trim()) return true;
-  if (/className=["'][^"'\n]*$/m.test(code)) return true;
-  if (/<(header|div|span|button|nav|a|section|footer|main|ul|li|img|form|input)\b[^>]*$/im.test(code)) {
-    return true;
-  }
   const trimmed = code.trim();
-  if (!/[}\)];\s*$/.test(trimmed)) return true;
   if (!/export\s+default|function\s+\w+|const\s+\w+\s*=/.test(code)) return true;
+  if (!/[}\)];\s*$/.test(trimmed)) return true;
+  if (/(className=["'][^"']*)$/.test(trimmed)) return true;
+  if (/<(header|div|span|button|nav|section|footer|main)\b[^>]*$/.test(trimmed)) return true;
   return false;
 }
 

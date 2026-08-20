@@ -35,6 +35,8 @@ Your goal is to convert raw HTML sections or UI screenshots into **clean, produc
    - Meaningful semantic tags (header, nav, main, section, footer)
    - NEVER stop mid-attribute. Every className must have a closing quote.
    - Prefer a complete smaller component over a truncated large one.
+   - Recreate ONLY the provided section. Do not rebuild the whole site mega-menu.
+   - Keep the file under 140 lines and finish every tag.
 6. **Images:**
    - Recreate visual structure with Tailwind. Use placeholder images only when necessary.
 
@@ -88,7 +90,7 @@ ${hasHtml ? `Optional structural hints:\n${html.slice(0, 4000)}` : ""}
 ${extras}`;
       raw = await generateFromImage(prompt, image.mimeType, image.base64);
     } else {
-      const truncatedHtml = html.length > 20000 ? html.substring(0, 20000) + "..." : html;
+      const truncatedHtml = html.length > 8000 ? html.substring(0, 8000) + "..." : html;
       raw = await generateWithFallback([
         { role: "system", content: SYSTEM_PROMPT },
         {

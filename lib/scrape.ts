@@ -9,7 +9,7 @@ const BROWSER_HEADERS = {
 };
 
 function isBlockedPage(status: number, html: string) {
-  if ([401, 403, 407, 429, 503].includes(status)) return true;
+  if ([401, 403, 407, 429].includes(status)) return true;
   return /cloudflare|attention required|just a moment|access denied|enable javascript and cookies/i.test(
     html.slice(0, 4000)
   );

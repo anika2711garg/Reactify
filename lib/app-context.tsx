@@ -9,7 +9,7 @@ import React, {
   useReducer,
   useState,
 } from "react";
-import type { Section } from "@/lib/parse";
+import { rankSections, type Section } from "@/lib/parse";
 import {
   deleteHistoryItem,
   loadHistory,
@@ -81,6 +81,7 @@ interface AppContextValue {
   startNew: () => void;
   handleGenerate: () => Promise<void>;
   handleSelectSection: (section: Section) => Promise<void>;
+  backToPicker: () => void;
   handleIterate: (instruction: string) => Promise<void>;
   openHistoryItem: (item: HistoryItem) => void;
   duplicateHistoryItem: (item: HistoryItem) => void;
@@ -245,7 +246,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setScreenshot(uploadedImage);
       setSections([section]);
       setView("workspace");
-      await generateFromSection(section, url || "screenshot://upload", uploadedImage);
       return;
     }
 
@@ -259,24 +259,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const data = await scrapeWebsite(url);
-      const nextSections: Section[] = data.sections || [];
+      const nextSections: Section[] = rankSections(data.sections || []);
       const nextScreenshot: string = data.screenshot || "";
       setSections(nextSections);
       setScreenshot(nextScreenshot);
 
-      const preferred =
-        nextSections.find((section) => section.type === "hero") ||
-        nextSections.find((section) => section.type === "header") ||
-        nextSections[0];
-
-      if (preferred) {
-        await generateFromSection(preferred, url, nextScreenshot, undefined, "url");
+      if (nextSections.length) {
+        setView("workspace");
       } else if (nextScreenshot) {
         const fallback = createSyntheticSection();
         setSections([fallback]);
-        await generateFromSection(fallback, url, nextScreenshot, undefined, "screenshot");
+        setView("workspace");
       } else {
         setError("No sections were detected. Try another URL or upload a screenshot.");
+        setView("home");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -285,6 +281,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setIsScraping(false);
     }
   }, [generateFromSection, inputMode, uploadedImage, url]);
+
+  const backToPicker = useCallback(() => {
+    setGeneratedCode("");
+    dispatchRevision({ type: "reset" });
+    setSelectedSection(null);
+    setSelectedElementId(null);
+    setError("");
+  }, []);
 
   const handleSelectSection = useCallback(
     async (section: Section) => {
@@ -471,6 +475,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       startNew,
       handleGenerate,
       handleSelectSection,
+      backToPicker,
       handleIterate,
       openHistoryItem,
       duplicateHistoryItem,
@@ -486,6 +491,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       error,
       generatedCode,
       generationStage,
+      backToPicker,
       handleGenerate,
       handleIterate,
       handleSelectSection,

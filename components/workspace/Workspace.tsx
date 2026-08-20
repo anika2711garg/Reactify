@@ -6,6 +6,7 @@ import { GenerationStage } from "@/components/generator/GenerationStage";
 import { CodePanel } from "@/components/code-editor/CodePanel";
 import { PreviewCanvas } from "@/components/preview/PreviewCanvas";
 import { RefinementBar } from "@/components/workspace/RefinementBar";
+import { SectionPicker } from "@/components/workspace/SectionPicker";
 import { SourcePanel } from "@/components/workspace/SourcePanel";
 import { ComponentTree } from "@/components/editor/ComponentTree";
 import { RevisionControls } from "@/components/editor/RevisionControls";
@@ -31,13 +32,15 @@ export function Workspace() {
     redo,
     setSelectedElementId,
     handleIterate,
+    backToPicker,
   } = useApp();
   const [pane, setPane] = useState<WorkspacePane>("preview");
   const [leftPane, setLeftPane] = useState<LeftPane>("source");
   const [codeExpanded, setCodeExpanded] = useState(false);
   const [sourceWidth, setSourceWidth] = useState(22);
   const [codeWidth, setCodeWidth] = useState(30);
-  const showStages = (isScraping || isGenerating) && !generatedCode;
+  const showStages = isScraping || (isGenerating && !generatedCode);
+  const showPicker = !isScraping && !isGenerating && !generatedCode && sections.length > 0;
   const autoRepairTried = useRef(false);
 
   useEffect(() => {
@@ -102,10 +105,25 @@ export function Workspace() {
             ]}
           />
         </div>
-        <RevisionControls />
+        <div className="flex items-center gap-2">
+          {generatedCode && sections.length > 0 && (
+            <button
+              type="button"
+              onClick={backToPicker}
+              className="rounded-lg border border-stroke px-2.5 py-1 text-[11px] text-muted hover:border-stroke-strong hover:text-ink"
+            >
+              Choose another part
+            </button>
+          )}
+          <RevisionControls />
+        </div>
       </div>
 
-      {showStages ? (
+      {showPicker ? (
+        <div className="min-h-0 flex-1">
+          <SectionPicker />
+        </div>
+      ) : showStages ? (
         <div className="min-h-0 flex-1">
           <GenerationStage
             stage={generationStage}
@@ -166,7 +184,7 @@ export function Workspace() {
         </>
       )}
 
-      <RefinementBar />
+      {!showPicker && <RefinementBar />}
     </div>
   );
 }

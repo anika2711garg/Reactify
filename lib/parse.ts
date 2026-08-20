@@ -1,136 +1,144 @@
-import * as cheerio from 'cheerio';
+import * as cheerio from "cheerio";
 
 export interface Section {
-    id: string;
-    type: string;
-    html: string;
-    previewText: string;
-    name: string;
+  id: string;
+  type: string;
+  html: string;
+  previewText: string;
+  name: string;
+}
+
+const MAX_SECTION_HTML = 7000;
+
+function compactHtml(rawHtml: string, baseUrl: string) {
+  const $ = cheerio.load(rawHtml, null, false);
+
+  $("script, style, noscript, iframe, svg, path, symbol, use, link, meta").remove();
+  $("[data-testid], [data-qa]").each((_, el) => {
+    $(el).removeAttr("data-testid").removeAttr("data-qa");
+  });
+
+  $("img").each((_, el) => {
+    const src = $(el).attr("src");
+    if (src && !src.startsWith("http") && !src.startsWith("data:")) {
+      try {
+        $(el).attr("src", new URL(src, baseUrl).toString());
+      } catch {
+        /* keep original */
+      }
+    }
+    $(el).removeAttr("srcset").removeAttr("sizes");
+  });
+
+  $("a").each((_, el) => {
+    const href = $(el).attr("href");
+    if (href && !href.startsWith("http") && !href.startsWith("#") && !href.startsWith("mailto:")) {
+      try {
+        $(el).attr("href", new URL(href, baseUrl).toString());
+      } catch {
+        /* keep original */
+      }
+    }
+  });
+
+  let html = $.root().children().first().prop("outerHTML") || $.html() || rawHtml;
+  if (html.length > MAX_SECTION_HTML) {
+    html = `${html.slice(0, MAX_SECTION_HTML)}<!-- truncated for generation -->`;
+  }
+  return html;
+}
+
+function classifySection(classAttr: string, idAttr: string, defaultName: string, tagName: string) {
+  const lowerStr = `${classAttr} ${idAttr} ${tagName} ${defaultName}`.toLowerCase();
+  if (lowerStr.includes("recipe") || lowerStr.includes("ingredient") || lowerStr.includes("method")) {
+    return { type: "recipe", name: "Recipe" };
+  }
+  if (tagName === "article" || lowerStr.includes("article") || lowerStr.includes("journal")) {
+    return { type: "article", name: "Article" };
+  }
+  if (tagName === "main" || lowerStr.includes("main")) {
+    return { type: "main", name: "Main content" };
+  }
+  if (lowerStr.includes("hero")) return { type: "hero", name: "Hero Section" };
+  if (lowerStr.includes("feature")) return { type: "features", name: "Features" };
+  if (lowerStr.includes("pric")) return { type: "pricing", name: "Pricing" };
+  if (lowerStr.includes("testimoni")) return { type: "testimonials", name: "Testimonials" };
+  if (lowerStr.includes("nav") || lowerStr.includes("header") || tagName === "header") {
+    return { type: "header", name: "Header/Nav" };
+  }
+  if (lowerStr.includes("foot") || tagName === "footer") return { type: "footer", name: "Footer" };
+  return { type: "unknown", name: defaultName };
+}
+
+function processElement(
+  $: cheerio.CheerioAPI,
+  el: any,
+  id: string,
+  defaultName: string,
+  baseUrl: string
+): Section {
+  const $el = $(el);
+  const rawHtml = $el.prop("outerHTML") || "";
+  const tagName = (((el as { tagName?: string }).tagName || $el.prop("tagName") || "") as string).toLowerCase();
+  const classAttr = $el.attr("class") || "";
+  const idAttr = $el.attr("id") || "";
+  const { type, name } = classifySection(classAttr, idAttr, defaultName, tagName);
+  const previewText = `${$el.text().replace(/\s+/g, " ").trim().slice(0, 150)}...`;
+
+  return {
+    id,
+    type,
+    html: compactHtml(rawHtml, baseUrl),
+    previewText,
+    name,
+  };
+}
+
+export function rankSections(sections: Section[]) {
+  const score = (section: Section) => {
+    let value = section.html.length;
+    if (["recipe", "article", "main", "hero"].includes(section.type)) value += 10000;
+    if (section.type === "header" || section.type === "footer") value -= 20000;
+    return value;
+  };
+
+  return [...sections].sort((left, right) => score(right) - score(left));
 }
 
 export function parseHtml(html: string, baseUrl: string): Section[] {
-    const $ = cheerio.load(html);
+  const $ = cheerio.load(html);
+  $("script, style, noscript, iframe").remove();
 
-    // Resolving relative URLs
-    // Handle images
-    $('img').each((_, el) => {
-        const src = $(el).attr('src');
-        if (src && !src.startsWith('http') && !src.startsWith('data:')) {
-            try {
-                $(el).attr('src', new URL(src, baseUrl).toString());
-            } catch (e) { }
-        }
-        // Handle srcset for responsive images
-        const srcset = $(el).attr('srcset');
-        if (srcset) {
-            const newSrcset = srcset.split(',').map(part => {
-                const [url, desc] = part.trim().split(/\s+/);
-                if (url && !url.startsWith('http') && !url.startsWith('data:')) {
-                    try {
-                        return `${new URL(url, baseUrl).toString()} ${desc || ''}`;
-                    } catch (e) { return part; }
-                }
-                return part;
-            }).join(', ');
-            $(el).attr('srcset', newSrcset);
-        }
+  const sections: Section[] = [];
+  let sectionCount = 0;
+  const seen = new Set<string>();
+
+  const push = (el: any, name: string) => {
+    const section = processElement($, el, `block-${sectionCount++}`, name, baseUrl);
+    const key = `${section.type}:${section.previewText.slice(0, 80)}`;
+    if (seen.has(key) || section.html.length < 80) return;
+    seen.add(key);
+    sections.push(section);
+  };
+
+  $("article, [itemtype*='Recipe']").each((_, el) => push(el, "Article"));
+  $("main").each((_, el) => push(el, "Main content"));
+  $("section").each((_, el) => push(el, "Section"));
+  $("header").each((_, el) => push(el, "Header"));
+  $("footer").each((_, el) => push(el, "Footer"));
+
+  if (sections.filter((section) => section.type === "article" || section.type === "recipe" || section.type === "main").length === 0) {
+    $("h1")
+      .first()
+      .closest("div, article, section")
+      .each((_, el) => push(el, "Page content"));
+  }
+
+  if (sections.length === 0) {
+    $("main > div, body > div").each((_, el) => {
+      if ($(el).text().trim().length > 80) push(el, "Content Block");
     });
+  }
 
-    // Handle links
-    $('a').each((_, el) => {
-        const href = $(el).attr('href');
-        if (href && !href.startsWith('http') && !href.startsWith('#') && !href.startsWith('mailto:')) {
-            try {
-                $(el).attr('href', new URL(href, baseUrl).toString());
-            } catch (e) { }
-        }
-    });
-
-    // 1. Clean HTML
-    $('script').remove();
-    $('style').remove();
-    $('noscript').remove();
-    $('iframe').remove();
-    // Remove hidden elements? - maybe unsafe if they are used for layout logic, but let's keep it simple for now.
-
-    const sections: Section[] = [];
-    let sectionCount = 0;
-
-    // 2. Heuristics for finding "sections"
-    // Priority 1: <section> tags
-    $('section').each((_, el) => {
-        sections.push(processElement($, el, `section-${sectionCount++}`, 'Section'));
-    });
-
-    // Priority 2: <header> (Landing pages usually have one main header/hero)
-    $('header').each((_, el) => {
-        sections.unshift(processElement($, el, `header-${sectionCount++}`, 'Header'));
-    });
-
-    // Priority 3: <footer>
-    $('footer').each((_, el) => {
-        sections.push(processElement($, el, `footer-${sectionCount++}`, 'Footer'));
-    });
-
-    // Priority 4: Direct children of <main> if no sections found, or just useful blocks
-    if (sections.length < 3) {
-        $('main > div').each((_, el) => {
-            // filter out empty divs
-            if ($(el).text().trim().length > 50) {
-                sections.push(processElement($, el, `main-div-${sectionCount++}`, 'Content Block'));
-            }
-        });
-    }
-
-    // If still nothing, try body direct divs with meaningful content
-    if (sections.length === 0) {
-        $('body > div').each((_, el) => {
-            if ($(el).text().trim().length > 100) {
-                sections.push(processElement($, el, `body-div-${sectionCount++}`, 'Content Block'));
-            }
-        });
-    }
-
-    // Deduplicate based on content or overlapping? 
-    // For now, return all found. 
-    // Maybe filter out very small sections
-    return sections.filter(s => s.html.length > 100);
-}
-
-function processElement($: cheerio.CheerioAPI, el: any, id: string, defaultName: string): Section {
-    const $el = $(el);
-    const rawHtml = $el.prop('outerHTML') || '';
-
-    // Try to determine type/name from class or id
-    const classAttr = $el.attr('class') || '';
-    const idAttr = $el.attr('id') || '';
-
-    let name = defaultName;
-    let type = 'unknown';
-
-    const lowerStr = (classAttr + ' ' + idAttr).toLowerCase();
-
-    if (lowerStr.includes('hero')) { type = 'hero'; name = 'Hero Section'; }
-    else if (lowerStr.includes('feature')) { type = 'features'; name = 'Features'; }
-    else if (lowerStr.includes('pric')) { type = 'pricing'; name = 'Pricing'; }
-    else if (lowerStr.includes('testimoni')) { type = 'testimonials'; name = 'Testimonials'; }
-    else if (lowerStr.includes('nav') || lowerStr.includes('header')) { type = 'header'; name = 'Header/Nav'; }
-    else if (lowerStr.includes('foot')) { type = 'footer'; name = 'Footer'; }
-
-    // Get a preview text (first 100 chars)
-    const previewText = $el.text().replace(/\s+/g, ' ').trim().slice(0, 150) + '...';
-
-    // Simplified HTML for AI: 
-    // We might want to strip out *all* attributes except src, href, alt for the AI prompt 
-    // to prevent it from ignoring our "Tailwind only" rule because it sees existing classes.
-    // BUT the AI needs to know layout to replicate it. 
-    // Compromise: Keep structure, maybe strip excessively long SVG paths or data-attributes.
-
-    return {
-        id,
-        type,
-        html: rawHtml, // Send full HTML to AI so it can infer layout
-        previewText,
-        name
-    };
+  return rankSections(sections).slice(0, 8);
 }

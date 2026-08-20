@@ -7,16 +7,17 @@ export const MODEL_GEMINI = "gemini-2.5-flash";
 
 const GROQ_MODELS = [
   process.env.GROQ_MODEL,
+  "openai/gpt-oss-20b",
+  "openai/gpt-oss-120b",
   "llama-3.3-70b-versatile",
   "llama-3.1-8b-instant",
 ].filter((model): model is string => Boolean(model));
 
 const GEMINI_MODELS = [
   process.env.GEMINI_MODEL,
-  "gemini-2.5-flash",
-  "gemini-2.5-flash-lite",
   "gemini-3.6-flash",
   "gemini-3.5-flash",
+  "gemini-2.5-flash",
   "gemini-2.0-flash",
 ].filter((model): model is string => Boolean(model));
 
