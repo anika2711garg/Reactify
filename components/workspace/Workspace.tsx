@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Code2, Eye, GitBranch, Image as ImageIcon } from "lucide-react";
 import { GenerationStage } from "@/components/generator/GenerationStage";
 import { CodePanel } from "@/components/code-editor/CodePanel";
@@ -11,6 +11,7 @@ import { ComponentTree } from "@/components/editor/ComponentTree";
 import { RevisionControls } from "@/components/editor/RevisionControls";
 import { Tabs } from "@/components/ui/Tabs";
 import { useApp } from "@/lib/app-context";
+import { looksTruncated } from "@/lib/ai/contract";
 import type { WorkspacePane } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +21,7 @@ export function Workspace() {
   const {
     isScraping,
     isGenerating,
+    isIterating,
     generatedCode,
     generationStage,
     screenshot,
@@ -28,6 +30,7 @@ export function Workspace() {
     undo,
     redo,
     setSelectedElementId,
+    handleIterate,
   } = useApp();
   const [pane, setPane] = useState<WorkspacePane>("preview");
   const [leftPane, setLeftPane] = useState<LeftPane>("source");
@@ -35,6 +38,7 @@ export function Workspace() {
   const [sourceWidth, setSourceWidth] = useState(22);
   const [codeWidth, setCodeWidth] = useState(30);
   const showStages = (isScraping || isGenerating) && !generatedCode;
+  const autoRepairTried = useRef(false);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -51,6 +55,19 @@ export function Workspace() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [redo, setSelectedElementId, undo]);
+
+  useEffect(() => {
+    if (!generatedCode) autoRepairTried.current = false;
+  }, [generatedCode]);
+
+  useEffect(() => {
+    if (!generatedCode || isGenerating || isIterating || isScraping) return;
+    if (autoRepairTried.current || !looksTruncated(generatedCode)) return;
+    autoRepairTried.current = true;
+    void handleIterate(
+      "The component is truncated. Finish every tag, quote, and className. Return only complete valid JavaScript JSX."
+    );
+  }, [generatedCode, handleIterate, isGenerating, isIterating, isScraping]);
 
   const startResize = (edge: "source" | "code") => (event: React.MouseEvent) => {
     event.preventDefault();

@@ -34,6 +34,7 @@ import {
   type Revision,
 } from "@/lib/history/revisions";
 import type { ViewportPreset } from "@/lib/preview/viewports";
+import { analyzeTree, generateComponent, iterateComponent, scrapeWebsite } from "@/lib/api/client";
 import { analyzeJsx, findTreeNode, type ComponentTreeNode } from "@/lib/parser/jsx-tree";
 
 interface AppContextValue {
@@ -122,6 +123,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isIterating, setIsIterating] = useState(false);
   const [generationStage, setGenerationStage] = useState(0);
   const [error, setError] = useState("");
+  const [serverTree, setServerTree] = useState<ComponentTreeNode[]>([]);
 
   useEffect(() => {
     setHistory(loadHistory());
@@ -179,6 +181,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSelectedSection(null);
     setGeneratedCode("");
     dispatchRevision({ type: "reset" });
+    setServerTree([]);
     setSelectedElementId(null);
     setCurrentId(null);
     setError("");
@@ -190,7 +193,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       section: Section,
       nextUrl: string,
       nextScreenshot: string,
-      itemId?: string
+      itemId?: string,
+      mode: InputMode = inputMode
     ) => {
       setIsGenerating(true);
       setGenerationStage((current) => Math.max(current, 3));
@@ -198,23 +202,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setError("");
 
       try {
-        const res = await fetch("/api/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            html: section.html,
-            screenshot: nextScreenshot || undefined,
-            style,
-            requirements: buildRequirements(
-              "Ensure it is fully responsive and uses modern design.",
-              advanced
-            ),
-          }),
+        const data = await generateComponent({
+          html: section.html,
+          screenshot: mode === "screenshot" ? nextScreenshot || undefined : undefined,
+          style,
+          requirements: buildRequirements(
+            "Ensure it is fully responsive and uses modern design.",
+            advanced
+          ),
+          mode,
         });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        if (!data.code) throw new Error("The model returned empty code. Try again.");
 
         setGeneratedCode(data.code);
+        if (data.tree?.length) setServerTree(data.tree);
         dispatchRevision({ type: "commit", code: data.code, label: "Initial generation" });
         persistGeneration(data.code, section, nextUrl, nextScreenshot, itemId);
         setView("workspace");
@@ -226,7 +227,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setGenerationStage(4);
       }
     },
-    [advanced, persistGeneration, style]
+    [advanced, inputMode, persistGeneration, style]
   );
 
   const handleGenerate = useCallback(async () => {
@@ -257,14 +258,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setView("workspace");
 
     try {
-      const res = await fetch("/api/scrape", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || "Scraping failed");
-
+      const data = await scrapeWebsite(url);
       const nextSections: Section[] = data.sections || [];
       const nextScreenshot: string = data.screenshot || "";
       setSections(nextSections);
@@ -276,11 +270,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         nextSections[0];
 
       if (preferred) {
-        await generateFromSection(preferred, url, nextScreenshot);
+        await generateFromSection(preferred, url, nextScreenshot, undefined, "url");
       } else if (nextScreenshot) {
         const fallback = createSyntheticSection();
         setSections([fallback]);
-        await generateFromSection(fallback, url, nextScreenshot);
+        await generateFromSection(fallback, url, nextScreenshot, undefined, "screenshot");
       } else {
         setError("No sections were detected. Try another URL or upload a screenshot.");
       }
@@ -295,9 +289,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const handleSelectSection = useCallback(
     async (section: Section) => {
       const reuseId = selectedSection?.id === section.id ? currentId || undefined : undefined;
-      await generateFromSection(section, url, screenshot || uploadedImage, reuseId);
+      const image = inputMode === "screenshot" ? screenshot || uploadedImage : screenshot;
+      await generateFromSection(section, url, image, reuseId, inputMode);
     },
-    [currentId, generateFromSection, screenshot, selectedSection?.id, uploadedImage, url]
+    [currentId, generateFromSection, inputMode, screenshot, selectedSection?.id, uploadedImage, url]
   );
 
   const handleIterate = useCallback(
@@ -306,21 +301,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setIsIterating(true);
       setError("");
       try {
-        const res = await fetch("/api/iterate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            currentCode: generatedCode,
-            instruction,
-            selectedPath: selectedElementId,
-            selectedName: selectedElementId
-              ? findTreeNode(analyzeJsx(generatedCode).tree, selectedElementId)?.name
-              : undefined,
-          }),
+        const localTree = analyzeJsx(generatedCode).tree;
+        const data = await iterateComponent({
+          currentCode: generatedCode,
+          instruction,
+          selectedPath: selectedElementId,
+          selectedName: selectedElementId
+            ? findTreeNode(localTree, selectedElementId)?.name
+            : undefined,
         });
-        const data = await res.json();
-        if (!data.code) throw new Error(data.error || "Failed to update component");
+        if (!data.code) throw new Error("Failed to update component");
         setGeneratedCode(data.code);
+        if (data.tree?.length) setServerTree(data.tree);
         dispatchRevision({ type: "commit", code: data.code, label: instruction.slice(0, 80) });
         if (selectedSection) {
           persistGeneration(data.code, selectedSection, url, screenshot || uploadedImage, currentId || undefined);
@@ -398,6 +390,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const commitCode = useCallback((code: string, label: string) => {
     setGeneratedCode(code);
     dispatchRevision({ type: "commit", code, label });
+    void analyzeTree(code)
+      .then((data) => {
+        if (data.tree?.length) setServerTree(data.tree);
+      })
+      .catch(() => undefined);
   }, []);
 
   const undo = useCallback(() => {
@@ -414,7 +411,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setGeneratedCode(next.code);
   }, [revisionState.index, revisionState.items]);
 
-  const treeAnalysis = useMemo(() => analyzeJsx(generatedCode), [generatedCode]);
+  const treeAnalysis = useMemo(() => {
+    const local = analyzeJsx(generatedCode);
+    if (local.tree.length) return local;
+    return { ...local, tree: serverTree };
+  }, [generatedCode, serverTree]);
 
   const saveCurrent = useCallback(() => {
     if (!currentId) return;

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateWithFallback } from "@/lib/ai";
 import { hasAiKeys } from "@/lib/ai/env";
 import { extractDependencies, publicErrorMessage, sanitizeGeneratedCode } from "@/lib/ai/contract";
+import { ensureCompleteCode } from "@/lib/ai/complete";
 import { analyzeJsx } from "@/lib/parser/jsx-tree";
 
 const SYSTEM_PROMPT = `
@@ -60,7 +61,10 @@ export async function POST(req: NextRequest) {
       { role: "user", content: userMessage },
     ]);
 
-    const code = sanitizeGeneratedCode(raw);
+    const code = await ensureCompleteCode(sanitizeGeneratedCode(raw));
+    if (!code) {
+      return NextResponse.json({ error: "The model returned empty code. Try again." }, { status: 502 });
+    }
     const before = extractDependencies(currentCode);
     const after = extractDependencies(code);
     const analysis = analyzeJsx(code);

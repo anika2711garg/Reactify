@@ -24,7 +24,7 @@ import {
   useInsertionEffect,
   useSyncExternalStore,
 } from "react";
-import { repairGeneratedJsx, stripTypescript } from "@/lib/ai/contract";
+import { looksTruncated, repairGeneratedJsx, stripTypescript } from "@/lib/ai/contract";
 import { analyzeJsx } from "@/lib/parser/jsx-tree";
 
 interface LivePreviewProps {
@@ -150,7 +150,13 @@ export function LivePreview({ code, selectedPath, onSelectPath }: LivePreviewPro
         <div className="min-h-full">
           <ReactLivePreview />
         </div>
-        <LiveError className="m-3 rounded-lg bg-red-50 p-3 text-sm text-red-700" />
+        {looksTruncated(code) ? (
+          <p className="m-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+            The generated component was cut off mid-line, so the preview cannot run it. Ask Reactify to fix the syntax, or click Generate again.
+          </p>
+        ) : (
+          <LiveError className="m-3 rounded-lg bg-red-50 p-3 text-sm text-red-700" />
+        )}
       </LiveProvider>
     </div>
   );

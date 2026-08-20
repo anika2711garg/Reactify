@@ -45,6 +45,18 @@ export function sanitizeGeneratedCode(raw: string) {
   ).trim();
 }
 
+export function looksTruncated(code: string) {
+  if (!code.trim()) return true;
+  if (/className=["'][^"'\n]*$/m.test(code)) return true;
+  if (/<(header|div|span|button|nav|a|section|footer|main|ul|li|img|form|input)\b[^>]*$/im.test(code)) {
+    return true;
+  }
+  const trimmed = code.trim();
+  if (!/[}\)];\s*$/.test(trimmed)) return true;
+  if (!/export\s+default|function\s+\w+|const\s+\w+\s*=/.test(code)) return true;
+  return false;
+}
+
 export function extractDependencies(code: string) {
   const matches = [...code.matchAll(/from\s+['"]([^'"]+)['"]/g)].map((match) => match[1]);
   const unique = Array.from(new Set(matches));
@@ -79,5 +91,8 @@ export function publicErrorMessage(error: unknown, fallback: string) {
   if (/timeout|timed out|ETIMEDOUT/i.test(message)) {
     return "The request timed out. Try a smaller page or retry.";
   }
-  return fallback;
+  if (/GoogleGenerativeAI|generativelanguage|api\.groq|ECONNREFUSED|stack/i.test(message)) {
+    return fallback;
+  }
+  return message.slice(0, 220);
 }

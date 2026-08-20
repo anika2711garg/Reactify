@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateFromImage, generateWithFallback } from "@/lib/ai";
 import { hasAiKeys } from "@/lib/ai/env";
 import { extractDependencies, publicErrorMessage, sanitizeGeneratedCode } from "@/lib/ai/contract";
+import { ensureCompleteCode } from "@/lib/ai/complete";
 import { parseDataUrl } from "@/lib/images/compress";
 import { analyzeJsx } from "@/lib/parser/jsx-tree";
 
@@ -32,6 +33,8 @@ Your goal is to convert raw HTML sections or UI screenshots into **clean, produc
    - Self-close void elements
    - Single default export
    - Meaningful semantic tags (header, nav, main, section, footer)
+   - NEVER stop mid-attribute. Every className must have a closing quote.
+   - Prefer a complete smaller component over a truncated large one.
 6. **Images:**
    - Recreate visual structure with Tailwind. Use placeholder images only when necessary.
 
@@ -53,9 +56,10 @@ function styleInstruction(style?: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { html, requirements, style, screenshot } = await req.json();
+    const { html, requirements, style, screenshot, mode } = await req.json();
     const hasHtml = typeof html === "string" && html.trim().length > 0;
-    const image = typeof screenshot === "string" ? parseDataUrl(screenshot) : null;
+    const preferImage = mode === "screenshot" || !hasHtml;
+    const image = preferImage && typeof screenshot === "string" ? parseDataUrl(screenshot) : null;
 
     if (!hasHtml && !image) {
       return NextResponse.json({ error: "HTML content or a screenshot is required" }, { status: 400 });
@@ -94,7 +98,7 @@ ${extras}`;
       ]);
     }
 
-    const code = sanitizeGeneratedCode(raw);
+    const code = await ensureCompleteCode(sanitizeGeneratedCode(raw));
     if (!code) {
       return NextResponse.json({ error: "The model returned empty code. Try again." }, { status: 502 });
     }

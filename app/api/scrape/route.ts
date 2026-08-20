@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { scrapeUrl } from "@/lib/scrape";
+import { scrapeErrorMessage, scrapeUrl } from "@/lib/scrape";
 import { parseHtml } from "@/lib/parse";
-import { publicErrorMessage } from "@/lib/ai/contract";
 import { assertPublicHttpUrl } from "@/lib/scraper/url-guard";
 
 export async function POST(req: NextRequest) {
@@ -21,7 +20,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     return NextResponse.json(
-      { error: publicErrorMessage(error, "Failed to scrape that website") },
+      { error: scrapeErrorMessage(error) },
       { status: 500 }
     );
   }
