@@ -7,6 +7,7 @@ import { IconButton } from "@/components/ui/IconButton";
 import { Panel, PanelHeader } from "@/components/ui/Panel";
 import { Tabs } from "@/components/ui/Tabs";
 import { useApp } from "@/lib/app-context";
+import { useTheme } from "@/lib/theme";
 import type { CodeTab } from "@/lib/types";
 import { extractDependencies } from "@/lib/utils";
 
@@ -18,6 +19,7 @@ export function CodePanel({
   onToggleExpand?: () => void;
 }) {
   const { generatedCode, setGeneratedCode } = useApp();
+  const { theme } = useTheme();
   const [tab, setTab] = useState<CodeTab>("component");
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -56,7 +58,7 @@ export function CodePanel({
   };
 
   return (
-    <Panel className="flex h-full flex-col bg-[#0B0B10]">
+    <Panel className="flex h-full flex-col bg-canvas">
       <PanelHeader>
         <Tabs
           value={tab}
@@ -72,7 +74,7 @@ export function CodePanel({
             <button
               type="button"
               onClick={() => setEditing((value) => !value)}
-              className="mr-1 rounded-lg px-2 py-1 text-[11px] text-muted hover:bg-white/5 hover:text-ink"
+              className="mr-1 rounded-lg px-2 py-1 text-[11px] text-muted hover:bg-wash hover:text-ink"
             >
               {editing ? "Highlight" : "Edit"}
             </button>
@@ -98,10 +100,10 @@ export function CodePanel({
             onChange={(event) => setGeneratedCode(event.target.value)}
             spellCheck={false}
             aria-label="Edit generated component"
-            className="h-full w-full resize-none bg-transparent p-4 font-mono text-[12.5px] leading-6 text-[#d6deeb] outline-none"
+            className="h-full w-full resize-none bg-transparent p-4 font-mono text-[12.5px] leading-6 text-ink outline-none"
           />
         ) : tab === "component" ? (
-          <Highlight theme={themes.nightOwl} code={display} language="tsx">
+          <Highlight theme={theme === "light" ? themes.github : themes.nightOwl} code={display} language="tsx">
             {({ tokens, getLineProps, getTokenProps }) => (
               <pre className="min-h-full p-4 font-mono text-[12.5px] leading-6">
                 {tokens.map((line, index) => (
@@ -120,7 +122,7 @@ export function CodePanel({
             )}
           </Highlight>
         ) : (
-          <pre className="h-full p-4 font-mono text-[12.5px] leading-6 text-[#d6deeb]">{display}</pre>
+          <pre className="h-full p-4 font-mono text-[12.5px] leading-6 text-ink">{display}</pre>
         )}
       </div>
     </Panel>

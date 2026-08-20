@@ -33,7 +33,7 @@ export function Tooltip({ content, children, side = "top" }: TooltipProps) {
         id={id}
         role="tooltip"
         className={cn(
-          "pointer-events-none absolute z-[80] whitespace-nowrap rounded-lg border border-stroke bg-[#12121A] px-2.5 py-1 text-[11px] font-medium text-ink shadow-float transition-all duration-200",
+          "pointer-events-none absolute z-[80] whitespace-nowrap rounded-lg border border-stroke bg-surface-raised px-2.5 py-1 text-[11px] font-medium text-ink shadow-float transition-all duration-200",
           sideClass[side],
           open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-0.5"
         )}

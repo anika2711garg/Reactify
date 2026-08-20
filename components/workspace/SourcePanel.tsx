@@ -52,7 +52,7 @@ export function SourcePanel() {
                   "absolute left-[6%] right-[6%] overflow-hidden rounded-lg border text-left transition-all duration-300",
                   active
                     ? "border-accent bg-accent/10 shadow-[0_0_0_1px_rgba(124,92,255,0.35)]"
-                    : "border-white/0 bg-transparent hover:border-white/20 hover:bg-white/5"
+                    : "border-transparent bg-transparent hover:border-stroke-strong hover:bg-wash"
                 )}
                 style={{
                   top: `${8 + index * Math.max(12, 70 / Math.max(sections.length, 1))}%`,

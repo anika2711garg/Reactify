@@ -67,7 +67,7 @@ export function InputCommand() {
                     inputRef.current?.focus();
                   }}
                   aria-label="Clear URL"
-                  className="rounded-md p-1 text-faint hover:bg-white/5 hover:text-ink"
+                  className="rounded-md p-1 text-faint hover:bg-wash hover:text-ink"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -146,7 +146,7 @@ function GenerateButton({
       type="button"
       onClick={onClick}
       disabled={busy || disabled}
-      className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-[14px] bg-accent px-6 text-sm font-semibold text-white shadow-[0_14px_36px_-16px_rgba(124,92,255,0.95)] transition-all duration-200 hover:bg-[#8b6dff] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+      className="generate-shine inline-flex h-14 w-full items-center justify-center gap-2 rounded-[14px] bg-accent px-6 text-sm font-semibold text-white shadow-[0_14px_36px_-16px_rgba(168,85,247,0.95)] transition-all duration-200 hover:bg-[#8b6dff] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
     >
       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
       {busy ? "Working" : "Generate"}

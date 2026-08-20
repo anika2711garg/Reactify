@@ -31,8 +31,8 @@ export function Tabs<T extends string>({ tabs, value, onChange, className }: Tab
             className={cn(
               "inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-all duration-200",
               selected
-                ? "bg-white/8 text-ink"
-                : "text-muted hover:bg-white/5 hover:text-ink"
+                ? "bg-wash-strong text-ink"
+                : "text-muted hover:bg-wash hover:text-ink"
             )}
           >
             {tab.icon}

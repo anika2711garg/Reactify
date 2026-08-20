@@ -1,18 +1,63 @@
+"use client";
+
 import React from "react";
 import { cn } from "@/lib/utils";
 
-export function Logo({ className }: { className?: string }) {
+export function LogoMark({
+  className,
+  size = 40,
+}: {
+  className?: string;
+  size?: number;
+}) {
   return (
-    <div
+    <span
       className={cn(
-        "flex h-10 w-10 items-center justify-center rounded-[12px] bg-accent-dim shadow-[inset_0_0_0_1px_rgba(124,92,255,0.35)]",
+        "logo-mark relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-[12px] shadow-[0_0_0_1px_rgba(168,85,247,0.28)]",
         className
       )}
-      aria-hidden
+      style={{ width: size, height: size }}
     >
-      <svg viewBox="0 0 24 24" className="h-5 w-5 text-accent-soft" fill="currentColor">
-        <path d="M13.2 2.1 4.4 13.4c-.25.32-.02.8.38.8h6.16l-1.14 7.4c-.08.5.55.82.88.45l8.8-11.3c.25-.32.02-.8-.38-.8h-6.16l1.14-7.4c.08-.5-.55-.82-.88-.45Z" />
-      </svg>
-    </div>
+      <img
+        src="/reactify-mark.png"
+        alt=""
+        width={size}
+        height={size}
+        className="h-full w-full object-cover"
+      />
+    </span>
   );
+}
+
+export function Wordmark({ className }: { className?: string }) {
+  return (
+    <span className={cn("inline-flex items-baseline font-semibold tracking-[-0.04em] text-ink", className)}>
+      React
+      <span className="relative mx-[0.01em] inline-flex h-[1em] w-[0.24em] items-end justify-center">
+        <span className="logo-idot absolute top-[0.1em] h-[0.18em] w-[0.18em] rounded-[2px] bg-accent" />
+        <span className="mb-[0.04em] h-[0.58em] w-[0.115em] rounded-[1px] bg-current" />
+      </span>
+      fy
+    </span>
+  );
+}
+
+export function BrandLockup({
+  className,
+  markSize = 36,
+}: {
+  className?: string;
+  markSize?: number;
+}) {
+  return (
+    <span className={cn("inline-flex items-center gap-2.5", className)}>
+      <LogoMark size={markSize} />
+      <span className="hidden h-5 w-px bg-stroke sm:block" />
+      <Wordmark className="hidden text-[17px] sm:inline-flex" />
+    </span>
+  );
+}
+
+export function Logo({ className }: { className?: string }) {
+  return <LogoMark className={className} />;
 }

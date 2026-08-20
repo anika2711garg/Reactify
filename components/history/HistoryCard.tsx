@@ -40,14 +40,14 @@ export function HistoryCard({ item, onOpen, onDuplicate, onDelete }: HistoryCard
         <button
           type="button"
           onClick={onOpen}
-          className="rounded-lg px-2 py-1 text-[11px] text-ink hover:bg-white/5"
+          className="rounded-lg px-2 py-1 text-[11px] text-ink hover:bg-wash"
         >
           Open
         </button>
         <button
           type="button"
           onClick={onDuplicate}
-          className="rounded-lg p-1.5 text-muted hover:bg-white/5 hover:text-ink"
+          className="rounded-lg p-1.5 text-muted hover:bg-wash hover:text-ink"
           aria-label="Duplicate"
         >
           <Copy className="h-3.5 w-3.5" />
