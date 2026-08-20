@@ -12,13 +12,11 @@ const COLOR_NAMES: Record<string, string> = {
   grey: "text-gray-500",
 };
 
-const TEXT_COLOR =
-  /text-(?:white|black|transparent|current|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|slate|zinc|neutral|stone|gray)-\d{2,3}(?:\/\d+)?|text-white(?:\/\d+)?|text-black(?:\/\d+)?/g;
+const TEXT_COLOR_CLASS =
+  /text-(?:white|black|transparent|current|ink|muted|faint|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|slate|zinc|neutral|stone|gray)(?:-\d{2,3})?(?:\/\d+)?|text-\[[^\]]+\]/;
 
 function hasTextColor(classes: string) {
-  return /text-(?:white|black|transparent|current|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|slate|zinc|neutral|stone|gray)(?:-\d{2,3})?(?:\/\d+)?/.test(
-    classes
-  );
+  return TEXT_COLOR_CLASS.test(classes);
 }
 
 function requestedColor(instruction: string) {
@@ -27,15 +25,23 @@ function requestedColor(instruction: string) {
 }
 
 function applyTextColor(code: string, colorClass: string) {
-  let next = code.replace(TEXT_COLOR, colorClass);
+  let next = code.replace(new RegExp(TEXT_COLOR_CLASS.source, "g"), colorClass);
+  next = next.replace(/color:\s*['"][^'"]+['"]/g, `color: 'inherit'`);
 
   next = next.replace(
-    /<(h[1-6]|p|span|a|li|label|button)([^>]*className=")([^"]*)(")/g,
+    /<(h[1-6]|p|span|a|li|label|button|strong|em|small|blockquote|figcaption|td|th|dt|dd)([^>]*className=")([^"]*)(")/g,
     (full, tag, before, classes, after) => {
-      if (hasTextColor(classes) || classes.includes(colorClass)) return full;
+      if (classes.includes(colorClass) || hasTextColor(classes)) return full;
       return `<${tag}${before}${classes} ${colorClass}${after}`;
     }
   );
+
+  if (next === code) {
+    next = code.replace(
+      /(className=")([^"]*)(")/,
+      (_full, before, classes, after) => `${before}${classes} ${colorClass}${after}`
+    );
+  }
 
   return next;
 }

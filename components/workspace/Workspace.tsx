@@ -68,7 +68,8 @@ export function Workspace() {
     if (autoRepairTried.current || !looksTruncated(generatedCode)) return;
     autoRepairTried.current = true;
     void handleIterate(
-      "Rewrite this into a complete compact React component under 80 lines. Close every import and tag. Keep the visible recipe content."
+      "Rewrite this into a complete compact React component under 80 lines. Close every import and tag. Keep the visible recipe content.",
+      { autoCommit: true }
     );
   }, [generatedCode, handleIterate, isGenerating, isIterating, isScraping]);
 

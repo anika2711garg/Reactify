@@ -83,7 +83,10 @@ interface AppContextValue {
   handleGenerate: () => Promise<void>;
   handleSelectSection: (section: Section) => Promise<void>;
   backToPicker: () => void;
-  handleIterate: (instruction: string) => Promise<void>;
+  handleIterate: (instruction: string, options?: { autoCommit?: boolean }) => Promise<void>;
+  pendingChange: { instruction: string; previousCode: string } | null;
+  keepPendingChange: () => void;
+  discardPendingChange: () => void;
   openHistoryItem: (item: HistoryItem) => void;
   duplicateHistoryItem: (item: HistoryItem) => void;
   removeHistoryItem: (id: string) => void;
@@ -126,6 +129,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [generationStage, setGenerationStage] = useState(0);
   const [error, setError] = useState("");
   const [serverTree, setServerTree] = useState<ComponentTreeNode[]>([]);
+  const [pendingChange, setPendingChange] = useState<{
+    instruction: string;
+    previousCode: string;
+  } | null>(null);
 
   useEffect(() => {
     setHistory(loadHistory());
@@ -188,6 +195,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCurrentId(null);
     setError("");
     setGenerationStage(0);
+    setPendingChange(null);
   }, []);
 
   const generateFromSection = useCallback(
@@ -218,6 +226,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         setGeneratedCode(data.code);
         if (data.tree?.length) setServerTree(data.tree);
+        setPendingChange(null);
         dispatchRevision({ type: "commit", code: data.code, label: "Initial generation" });
         persistGeneration(data.code, section, nextUrl, nextScreenshot, itemId);
         setView("workspace");
@@ -237,6 +246,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setGeneratedCode("");
     setSelectedSection(null);
     setGenerationStage(0);
+    setPendingChange(null);
 
     if (inputMode === "screenshot") {
       if (!uploadedImage) {
@@ -289,6 +299,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSelectedSection(null);
     setSelectedElementId(null);
     setError("");
+    setPendingChange(null);
   }, []);
 
   const handleSelectSection = useCallback(
@@ -300,29 +311,65 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [currentId, generateFromSection, inputMode, screenshot, selectedSection?.id, uploadedImage, url]
   );
 
+  const persistCurrent = useCallback(
+    (code: string, label: string) => {
+      dispatchRevision({ type: "commit", code, label: label.slice(0, 80) });
+      if (selectedSection) {
+        persistGeneration(code, selectedSection, url, screenshot || uploadedImage, currentId || undefined);
+      }
+    },
+    [currentId, persistGeneration, screenshot, selectedSection, uploadedImage, url]
+  );
+
+  const keepPendingChange = useCallback(() => {
+    if (!pendingChange) return;
+    persistCurrent(generatedCode, pendingChange.instruction);
+    setPendingChange(null);
+  }, [generatedCode, pendingChange, persistCurrent]);
+
+  const discardPendingChange = useCallback(() => {
+    if (!pendingChange) return;
+    setGeneratedCode(pendingChange.previousCode);
+    setPendingChange(null);
+  }, [pendingChange]);
+
   const handleIterate = useCallback(
-    async (instruction: string) => {
+    async (instruction: string, options?: { autoCommit?: boolean }) => {
       if (!instruction.trim()) return;
       if (!generatedCode.trim()) {
         setError("Generate a section first, then ask for changes.");
         return;
       }
 
-      const local = applyLocalInstruction(generatedCode, instruction);
-      if (local) {
-        setGeneratedCode(local);
-        dispatchRevision({ type: "commit", code: local, label: instruction.slice(0, 80) });
-        if (selectedSection) {
-          persistGeneration(local, selectedSection, url, screenshot || uploadedImage, currentId || undefined);
+      let baseline = generatedCode;
+      if (pendingChange) {
+        persistCurrent(generatedCode, pendingChange.instruction);
+        setPendingChange(null);
+        baseline = generatedCode;
+      }
+
+      const acceptChange = (code: string) => {
+        setGeneratedCode(code);
+        if (options?.autoCommit) {
+          persistCurrent(code, instruction);
+          setPendingChange(null);
+          return;
         }
+        setPendingChange({ instruction: instruction.trim(), previousCode: baseline });
+      };
+
+      const local = applyLocalInstruction(baseline, instruction);
+      if (local) {
+        acceptChange(local);
+        return;
       }
 
       setIsIterating(true);
       setError("");
       try {
-        const localTree = analyzeJsx(local || generatedCode).tree;
+        const localTree = analyzeJsx(baseline).tree;
         const data = await iterateComponent({
-          currentCode: local || generatedCode,
+          currentCode: baseline,
           instruction,
           selectedPath: selectedElementId,
           selectedName: selectedElementId
@@ -330,19 +377,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             : undefined,
         });
         if (!data.code) throw new Error("Failed to update component");
-        setGeneratedCode(data.code);
         if (data.tree?.length) setServerTree(data.tree);
-        dispatchRevision({ type: "commit", code: data.code, label: instruction.slice(0, 80) });
-        if (selectedSection) {
-          persistGeneration(data.code, selectedSection, url, screenshot || uploadedImage, currentId || undefined);
-        }
+        acceptChange(data.code);
       } catch (err) {
-        if (!local) setError(err instanceof Error ? err.message : "Refinement failed");
+        setError(err instanceof Error ? err.message : "Refinement failed");
       } finally {
         setIsIterating(false);
       }
     },
-    [currentId, generatedCode, persistGeneration, screenshot, selectedElementId, selectedSection, uploadedImage, url]
+    [generatedCode, pendingChange, persistCurrent, selectedElementId]
   );
 
   const openHistoryItem = useCallback((item: HistoryItem) => {
@@ -360,6 +403,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       },
     });
     setSelectedElementId(null);
+    setPendingChange(null);
     setStyle(item.style);
     setSelectedSection({
       id: item.id,
@@ -417,11 +461,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const undo = useCallback(() => {
+    if (pendingChange) {
+      setGeneratedCode(pendingChange.previousCode);
+      setPendingChange(null);
+      return;
+    }
     const previous = revisionState.items[revisionState.index - 1];
     if (!previous) return;
     dispatchRevision({ type: "undo" });
     setGeneratedCode(previous.code);
-  }, [revisionState.index, revisionState.items]);
+  }, [pendingChange, revisionState.index, revisionState.items]);
 
   const redo = useCallback(() => {
     const next = revisionState.items[revisionState.index + 1];
@@ -467,7 +516,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       commitCode,
       undo,
       redo,
-      canUndo: revisionState.index > 0,
+      canUndo: Boolean(pendingChange) || revisionState.index > 0,
       canRedo: revisionState.index >= 0 && revisionState.index < revisionState.items.length - 1,
       revisions: revisionState.items,
       revisionIndex: revisionState.index,
@@ -492,6 +541,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       handleSelectSection,
       backToPicker,
       handleIterate,
+      pendingChange,
+      keepPendingChange,
+      discardPendingChange,
       openHistoryItem,
       duplicateHistoryItem,
       removeHistoryItem,
@@ -510,6 +562,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       handleGenerate,
       handleIterate,
       handleSelectSection,
+      keepPendingChange,
+      discardPendingChange,
+      pendingChange,
       history,
       inputMode,
       isGenerating,
