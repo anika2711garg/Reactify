@@ -1,66 +1,141 @@
-# Reactify ⚡️
+# Reactify
 
-**Reactify** is an AI-powered tool that transforms any website URL or screenshot into production-ready React + Tailwind CSS components. It scrapes website content, allows you to select specific sections, and uses advanced AI to generate clean, responsive code.
+**Interface → React + Tailwind.** Paste a public URL or a screenshot. Reactify scrapes or reads the image, lets you pick a section, and returns a runnable component with live preview, code, and chat refine.
 
-**🌐 Live Demo:** [https://drive.google.com/file/d/1ZE6uiDaW4oSKuaDjvUVfflyeTkAJhY5H/view?usp=drive_link](#)
+**Deployed app:** [https://reactify-3f22.vercel.app/](https://reactify-3f22.vercel.app/)
 
-## Here is the Deployed Link
-https://reactify-3f22.vercel.app/
+[![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=nextdotjs)](https://nextjs.org/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-38BDF8?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Vercel](https://img.shields.io/badge/Deployed-Vercel-white?style=flat-square&logo=vercel&logoColor=black)](https://reactify-3f22.vercel.app/)
 
-## 🚀 Features
+---
 
-### Core Functionality
-- **URL to Component:** Paste a URL, select a section, and get code.
-- **Screenshot Fallback:** Automatically handles screenshots if text scraping fails.
-- **Live Preview:** Real-time rendering of generated code with a mobile/desktop toggle.
-- **Iterative Refinement:** Chat with the AI to tweak the design (e.g., "Make the background blue").
+## Pipeline
 
-### UI & UX
-- **Style Selector:** Choose from **Minimal**, **Modern**, **Dense**, or **Brutalist** variants.
-- **History & Saving:** Your generated components are automatically saved locally.
-- **Comparison Mode:** Toggle between the "Original" screenshot and the "Code" preview.
-- **Export:** One-click download of `.tsx` files.
-- **Tooltips:** Helpful on-hover explanations for all key features.
+```
+URL | screenshot
+        │
+        ▼
+  scrape / vision          POST /api/scrape  ·  /api/generate
+        │
+        ▼
+  section picker           ranked semantic blocks (hero, article, nav, …)
+        │
+        ▼
+  Groq → Gemini fallback   JSX + Tailwind, JS only
+        │
+        ▼
+  workspace                Source · Preview (react-live) · Code
+        │
+        ▼
+  refine                   local edits or POST /api/iterate  →  Keep / Discard
+```
 
-## 🛠️ Tech Stack
+## Capabilities
 
-- **Framework:** [Next.js 14](https://nextjs.org/) (App Router)
-- **Styling:** [Tailwind CSS](https://tailwindcss.com/)
-- **AI Models:**
-  - **Groq (Llama 3):** For ultra-fast initial code generation.
-  - **Google Gemini 1.5 Pro:** For multimodal understanding (screenshots) and complex logic.
-- **Scraping:** Puppeteer / Playwright (Server-side).
+| Surface | What it does |
+| --- | --- |
+| **URL ingest** | Cheerio scrape with browser-like headers. Cloudflare / 403 sites should use Screenshot. |
+| **Screenshot ingest** | Upload, drop, or paste (`Ctrl+V` / `⌘V`). Gemini vision reconstructs layout, copy, and color. |
+| **Section picker** | Choose which part of the page to generate first. No full-site dump. |
+| **Live preview** | `react-live` iframe-free canvas, viewport presets, original vs generated compare. |
+| **Code panel** | Sanitized JSX, copy, component tree from Babel AST. |
+| **Chat refine** | “Change text colour to green”, spacing, minimal, motion. Preview stays until **Keep** or **Discard**. |
+| **History** | Local generations, save, duplicate, restore. |
 
-## 📦 Getting Started
+Style presets: **Minimal · Modern · Dense · Brutalist**. Advanced options cover framework flavor, responsive bias, and granularity.
 
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/yourusername/reactify.git
-    cd reactify
-    ```
+## Architecture
 
-2.  **Install dependencies:**
-    ```bash
-    npm install
-    ```
+```
+app/
+  api/scrape     HTML fetch + section extract
+  api/generate   HTML or screenshot → component
+  api/iterate    instruction + optional screenshot rematch
+  api/tree       JSX → component tree
+  api/status     { groq, google }  (booleans only)
+lib/
+  ai.ts          Groq OpenAI-compat, then Gemini REST
+  ai/env.ts      GROQ_API_KEY · GOOGLE_API_KEY aliases
+  scrape.ts      fetch + block-page handling
+  parse.ts       semantic rank + compact HTML
+  parser/        Babel walk + instrumented preview paths
+```
 
-3.  **Set up environment variables:**
-    Create a `.env.local` file in the **same folder as `package.json`** (`Reactify/`):
-    ```env
-    GROQ_API_KEY=your_groq_key
-    GOOGLE_API_KEY=your_gemini_key
-    ```
-    These must stay server-only. `NEXT_PUBLIC_*` names also work as a fallback, but do not prefer them.
+**Providers.** Groq (`openai/gpt-oss-20b` and fallbacks) for fast text. Gemini (`gemini-3.6-flash` and fallbacks) for vision and quota failover. Retired IDs (`gemini-1.5-*`, `gemini-2.0-*`, `llama-3.1-8b-instant`, …) are skipped.
 
-    **Vercel:** `.env.local` is not uploaded. In the Vercel project go to **Settings → Environment Variables**, add `GROQ_API_KEY` and `GOOGLE_API_KEY` for **Production**, then **Redeploy**. Optional: `GROQ_MODEL` and `GEMINI_MODEL`.
+**Preview contract.** Output is JavaScript JSX only. Imports, TypeScript, and markdown fences are stripped. Truncated drafts are closed or rewritten so `react-live` does not render raw source.
 
-4.  **Run the development server:**
-    ```bash
-    npm run dev
-    
-5.  **Open your browser:**
-    Navigate to `http://localhost:3000` to start building!
+## Stack
 
+| Layer | Choice |
+| --- | --- |
+| App | Next.js 16 App Router, React 19, TypeScript 5 |
+| UI | Tailwind CSS v4, Framer Motion, Lucide |
+| Preview | react-live, prism-react-renderer |
+| AST | @babel/parser, traverse, generator |
+| Scrape | cheerio (no headless browser on Vercel) |
+| Models | Groq Chat Completions + Gemini `generateContent` |
 
+## Local setup
 
+```bash
+git clone https://github.com/anika2711garg/Reactify.git
+cd Reactify
+npm install
+```
 
+Create `.env.local` next to `package.json`:
+
+```env
+GROQ_API_KEY=gsk_...
+GOOGLE_API_KEY=AIza...
+```
+
+Optional: `GROQ_MODEL`, `GEMINI_MODEL`. Keys stay server-side. `NEXT_PUBLIC_*` aliases exist only as a fallback.
+
+```bash
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000). If 3000 is taken, Next will bind the next free port.
+
+```bash
+npm run build
+```
+
+## Production (Vercel)
+
+The live instance is **[reactify-3f22.vercel.app](https://reactify-3f22.vercel.app/)**.
+
+`.env.local` is gitignored and is not uploaded. In Vercel → **Settings → Environment Variables** add for **Production** (and Preview if you use it):
+
+| Name | Required |
+| --- | --- |
+| `GROQ_API_KEY` | Yes |
+| `GOOGLE_API_KEY` | Yes (screenshot / vision) |
+| `GROQ_MODEL` / `GEMINI_MODEL` | No |
+
+Redeploy after changing variables. Confirm keys loaded at `/api/status` — you want `"groq": true` and `"google": true`.
+
+## API
+
+| Method | Route | Body |
+| --- | --- | --- |
+| `POST` | `/api/scrape` | `{ url }` |
+| `POST` | `/api/generate` | `{ html?, screenshot?, style, requirements, mode }` |
+| `POST` | `/api/iterate` | `{ currentCode, instruction, screenshot? }` |
+| `POST` | `/api/tree` | `{ code }` |
+| `GET` | `/api/status` | — |
+
+## Limits
+
+- Sites behind Cloudflare often return 403 — use the Screenshot tab.
+- Generated files stay compact so preview and refine do not truncate mid-`className`.
+- Screenshot reconstruction needs a working `GOOGLE_API_KEY` on the server that serves the request.
+
+## Contact
+
+[anika7work@gmail.com](mailto:anika7work@gmail.com)
