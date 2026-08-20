@@ -40,12 +40,49 @@ function applyTextColor(code: string, colorClass: string) {
   return next;
 }
 
+function bumpSpacing(code: string) {
+  return code
+    .replace(/\b(p|px|py|pt|pb|m|mx|my|mt|mb|gap|space-x|space-y)-(\d+)\b/g, (_full, prefix, value) => {
+      const next = Math.min(24, Number(value) + 2);
+      return `${prefix}-${next}`;
+    })
+    .replace(/\bspace-y-(\d+)\b/g, (_full, value) => `space-y-${Math.min(24, Number(value) + 2)}`);
+}
+
+function applyMinimal(code: string) {
+  return code
+    .replace(/\bshadow-(?:sm|md|lg|xl|2xl|float)\b/g, "shadow-none")
+    .replace(/\brounded-(?:2xl|3xl|\[16px\])\b/g, "rounded-lg");
+}
+
+function applyMotion(code: string) {
+  return code.replace(
+    /(className=")([^"]*)(")/g,
+    (full, before, classes, after) => {
+      if (classes.includes("transition")) return full;
+      return `${before}${classes} transition-all duration-300${after}`;
+    }
+  );
+}
+
 export function applyLocalInstruction(code: string, instruction: string) {
   if (!code.trim()) return null;
   const text = instruction.toLowerCase();
   const color = requestedColor(text);
   if (color && /(colo(u)?r|text|font|heading|title|make)/.test(text)) {
     const next = applyTextColor(code, COLOR_NAMES[color]);
+    return next === code ? null : next;
+  }
+  if (/increase spacing|more space|more padding/.test(text)) {
+    const next = bumpSpacing(code);
+    return next === code ? null : next;
+  }
+  if (/more minimal|make it minimal/.test(text)) {
+    const next = applyMinimal(code);
+    return next === code ? null : next;
+  }
+  if (/animation|animate/.test(text)) {
+    const next = applyMotion(code);
     return next === code ? null : next;
   }
   return null;

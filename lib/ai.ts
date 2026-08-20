@@ -9,15 +9,15 @@ const GROQ_MODELS = [
   process.env.GROQ_MODEL,
   "openai/gpt-oss-20b",
   "openai/gpt-oss-120b",
+  "meta-llama/llama-4-scout-17b-16e-instruct",
   "llama-3.3-70b-versatile",
-  "llama-3.1-8b-instant",
 ].filter((model): model is string => Boolean(model));
 
 const GEMINI_MODELS = [
   process.env.GEMINI_MODEL,
   "gemini-3.6-flash",
   "gemini-3.5-flash",
-  "gemini-2.5-flash",
+  "gemini-3.5-flash-lite",
   "gemini-2.0-flash",
 ].filter((model): model is string => Boolean(model));
 
@@ -148,11 +148,19 @@ export async function generateWithFallback(messages: any[], temperature: number 
         console.warn(`${provider} failed. Switching to ${next}...`);
         continue;
       }
-      throw error;
+      throw toFinalAiError(error);
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error("All AI providers failed");
+  throw toFinalAiError(lastError);
+}
+
+function toFinalAiError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/404|not found|no longer available|does not exist|unknown model|decommissioned/i.test(message)) {
+    return new Error("ALL_MODELS_UNAVAILABLE");
+  }
+  return error instanceof Error ? error : new Error(message || "All AI providers failed");
 }
 
 export async function generateFromImage(

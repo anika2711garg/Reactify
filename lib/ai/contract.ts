@@ -75,7 +75,7 @@ export function classifyDependencies(dependencies: string[]) {
 export function publicErrorMessage(error: unknown, fallback: string) {
   const message = error instanceof Error ? error.message : fallback;
   if (/NO_AI_KEYS|not configured|no valid api keys/i.test(message)) {
-    return "AI keys were not loaded. Add GROQ_API_KEY or GOOGLE_API_KEY to .env.local in the Reactify folder and restart the server.";
+    return "AI keys were not loaded. Add GROQ_API_KEY and GOOGLE_API_KEY in Vercel Project Settings → Environment Variables (Production), then Redeploy. Locally they go in .env.local.";
   }
   if (/NO_GEMINI_KEY|needs a gemini key/i.test(message)) {
     return "Screenshot generation needs GOOGLE_API_KEY in .env.local. Restart the server after adding it.";
@@ -83,8 +83,8 @@ export function publicErrorMessage(error: unknown, fallback: string) {
   if (/api[_-]?key|secret|token|unauthorized|401/i.test(message)) {
     return "The AI service rejected the request. Check server API keys.";
   }
-  if (/404/i.test(message) && /not found|decommissioned|no longer available|unknown model/i.test(message)) {
-    return "The configured AI model is unavailable. Try again or check server model settings.";
+  if (/ALL_MODELS_UNAVAILABLE/i.test(message) || (/404/i.test(message) && /not found|decommissioned|no longer available|unknown model/i.test(message))) {
+    return "The AI models on this deploy are unavailable. Add GROQ_API_KEY and GOOGLE_API_KEY in Vercel (Production) and Redeploy. You can also set GROQ_MODEL or GEMINI_MODEL.";
   }
   if (/503|502|500|high demand|overloaded|service unavailable/i.test(message)) {
     return "The AI service is busy. Reactify will retry the other provider automatically — try Generate again.";

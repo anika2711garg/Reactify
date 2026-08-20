@@ -52,6 +52,8 @@ https://reactify-3f22.vercel.app/
     ```
     These must stay server-only. `NEXT_PUBLIC_*` names also work as a fallback, but do not prefer them.
 
+    **Vercel:** `.env.local` is not uploaded. In the Vercel project go to **Settings → Environment Variables**, add `GROQ_API_KEY` and `GOOGLE_API_KEY` for **Production**, then **Redeploy**. Optional: `GROQ_MODEL` and `GEMINI_MODEL`.
+
 4.  **Run the development server:**
     ```bash
     npm run dev
