@@ -40,10 +40,16 @@ export function classifyDependencies(dependencies: string[]) {
 
 export function publicErrorMessage(error: unknown, fallback: string) {
   const message = error instanceof Error ? error.message : fallback;
+  if (/NO_AI_KEYS|not configured|no valid api keys/i.test(message)) {
+    return "AI keys were not loaded. Add GROQ_API_KEY or GOOGLE_API_KEY to .env.local in the Reactify folder and restart the server.";
+  }
+  if (/NO_GEMINI_KEY|needs a gemini key/i.test(message)) {
+    return "Screenshot generation needs GOOGLE_API_KEY in .env.local. Restart the server after adding it.";
+  }
   if (/api[_-]?key|secret|token|unauthorized|401/i.test(message)) {
     return "The AI service rejected the request. Check server API keys.";
   }
-  if (/404/i.test(message) && /not found/i.test(message)) {
+  if (/404/i.test(message) && /not found|decommissioned|no longer available|unknown model/i.test(message)) {
     return "The configured AI model is unavailable. Try again or check server model settings.";
   }
   if (/timeout|timed out|ETIMEDOUT/i.test(message)) {

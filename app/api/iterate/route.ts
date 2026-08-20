@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateWithFallback } from "@/lib/ai";
+import { hasAiKeys } from "@/lib/ai/env";
 import { extractDependencies, publicErrorMessage, sanitizeGeneratedCode } from "@/lib/ai/contract";
 import { analyzeJsx } from "@/lib/parser/jsx-tree";
 
@@ -33,8 +34,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Current code and instruction are required" }, { status: 400 });
     }
 
-    if (!process.env.GROQ_API_KEY && !process.env.GOOGLE_API_KEY) {
-      return NextResponse.json({ error: "AI service is not configured on the server." }, { status: 500 });
+    if (!hasAiKeys()) {
+      return NextResponse.json(
+        { error: publicErrorMessage(new Error("NO_AI_KEYS"), "AI service is not configured.") },
+        { status: 500 }
+      );
     }
 
     const focus = selectedPath

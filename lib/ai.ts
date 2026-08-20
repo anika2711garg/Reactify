@@ -1,97 +1,222 @@
-import OpenAI from 'openai';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getAiKeys } from "@/lib/ai/env";
 
-// Keys
-const groqKey = (process.env.GROQ_API_KEY || '').trim().replace(/^["']|["']$/g, '');
-const googleKey = (process.env.GOOGLE_API_KEY || '').trim().replace(/^["']|["']$/g, '');
+export const MODEL_GROQ = "llama-3.3-70b-versatile";
+export const MODEL_GEMINI = "gemini-2.5-flash";
 
-// Log availability (safe) - keeping debugging for now
-console.log(`API Config: Groq=${!!groqKey}, Google=${!!googleKey}`);
+const GROQ_MODELS = [
+  process.env.GROQ_MODEL,
+  "llama-3.3-70b-versatile",
+  "llama-3.1-8b-instant",
+].filter((model): model is string => Boolean(model));
 
-// Groq Client (OpenAI standard)
-const groq = new OpenAI({
-    apiKey: groqKey || 'dummy',
-    baseURL: 'https://api.groq.com/openai/v1',
-});
+const GEMINI_MODELS = [
+  process.env.GEMINI_MODEL,
+  "gemini-3.6-flash",
+  "gemini-3.5-flash",
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+].filter((model): model is string => Boolean(model));
 
-// Gemini Client (Native SDK)
-// Initialize only if key exists to prevent errors during init
-const genAI = googleKey ? new GoogleGenerativeAI(googleKey) : null;
-
-export const MODEL_GROQ = 'llama-3.3-70b-versatile';
-export const MODEL_GEMINI = 'gemini-1.5-flash';
-
-export async function generateWithFallback(messages: any[], temperature: number = 0.2) {
-    // 1. Try Groq (Preferred for Llama 3)
-    if (groqKey) {
-        try {
-            console.log('Attempting generation with Groq (Llama 3)...');
-            const completion = await groq.chat.completions.create({
-                model: MODEL_GROQ,
-                messages,
-                temperature,
-                max_tokens: 8192,
-            });
-            return completion.choices[0]?.message?.content || '';
-        } catch (error: any) {
-            console.warn('Groq failed:', error.message);
-
-            // If strictly rate limited or server error, switch.
-            if (!googleKey || !genAI) throw error; // No backup
-            console.log('Falling back to Google Gemini (Native SDK)...');
-        }
-    }
-
-    // 2. Try Google Gemini (Native SDK)
-    if (googleKey && genAI) {
-        try {
-            const model = genAI.getGenerativeModel({ model: MODEL_GEMINI });
-
-            // Map keys
-            const systemMessage = messages.find((m: any) => m.role === 'system')?.content || '';
-            const userMessage = messages.find((m: any) => m.role === 'user')?.content || '';
-
-            // Combine for simple generation
-            // Note: Gemini 1.5 supports system instructions in config, but prompting in body is robust.
-            const prompt = `${systemMessage}\n\nUSER REQUEST:\n${userMessage}`;
-
-            const result = await model.generateContent({
-                contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                generationConfig: {
-                    temperature: temperature,
-                    maxOutputTokens: 8192,
-                }
-            });
-
-            return result.response.text();
-        } catch (error: any) {
-            console.error('Gemini Native SDK failed:', error.message);
-            throw error; // Both failed
-        }
-    }
-
-    throw new Error('No valid API keys configured (GROQ_API_KEY or GOOGLE_API_KEY)');
+function unique(models: string[]) {
+  return [...new Set(models)];
 }
 
-export async function generateFromImage(prompt: string, mimeType: string, base64: string, temperature: number = 0.2) {
-    if (!googleKey || !genAI) {
-        throw new Error('Screenshot generation needs a Gemini key (GOOGLE_API_KEY) on the server.');
+function errorText(error: unknown) {
+  if (error instanceof Error) return `${error.message} ${JSON.stringify((error as { error?: unknown }).error ?? "")}`;
+  return String(error);
+}
+
+function isUnavailableModel(error: unknown) {
+  return /404|not found|decommissioned|no longer available|does not exist|model_not_found|unknown model/i.test(
+    errorText(error)
+  );
+}
+
+function isProviderExhausted(error: unknown) {
+  return /429|rate limit|quota|resource.?exhausted|insufficient|credits|billing|too many requests|limit exceeded|capacity/i.test(
+    errorText(error)
+  );
+}
+
+function groqClient(apiKey: string) {
+  return new OpenAI({
+    apiKey,
+    baseURL: "https://api.groq.com/openai/v1",
+  });
+}
+
+function geminiClient(apiKey: string) {
+  return new GoogleGenerativeAI(apiKey);
+}
+
+async function generateWithGroq(messages: any[], temperature: number, apiKey: string) {
+  const client = groqClient(apiKey);
+  let lastError: unknown;
+
+  for (const model of unique(GROQ_MODELS)) {
+    try {
+      console.log(`Attempting generation with Groq (${model})...`);
+      const completion = await client.chat.completions.create({
+        model,
+        messages,
+        temperature,
+        max_tokens: 8192,
+      });
+      return completion.choices[0]?.message?.content || "";
+    } catch (error) {
+      lastError = error;
+      if (isProviderExhausted(error)) {
+        console.warn("Groq quota or rate limit reached. Switching provider...");
+        throw error;
+      }
+      if (isUnavailableModel(error)) {
+        console.warn(`Groq model unavailable: ${model}`);
+        continue;
+      }
+      throw error;
     }
+  }
 
-    const model = genAI.getGenerativeModel({ model: MODEL_GEMINI });
-    const result = await model.generateContent({
-        contents: [{
-            role: 'user',
-            parts: [
-                { text: prompt },
-                { inlineData: { mimeType, data: base64 } },
-            ],
-        }],
+  throw lastError instanceof Error ? lastError : new Error("Groq generation failed");
+}
+
+async function generateWithGemini(prompt: string, temperature: number, apiKey: string) {
+  const client = geminiClient(apiKey);
+  let lastError: unknown;
+
+  for (const modelName of unique(GEMINI_MODELS)) {
+    try {
+      console.log(`Attempting generation with Gemini (${modelName})...`);
+      const model = client.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
         generationConfig: {
-            temperature,
-            maxOutputTokens: 8192,
+          temperature,
+          maxOutputTokens: 8192,
         },
-    });
+      });
+      return result.response.text();
+    } catch (error) {
+      lastError = error;
+      if (isProviderExhausted(error)) {
+        console.warn("Gemini quota or rate limit reached. Switching provider...");
+        throw error;
+      }
+      if (isUnavailableModel(error)) {
+        console.warn(`Gemini model unavailable: ${modelName}`);
+        continue;
+      }
+      throw error;
+    }
+  }
 
-    return result.response.text();
+  throw lastError instanceof Error ? lastError : new Error("Gemini generation failed");
+}
+
+async function generateWithGeminiImage(
+  prompt: string,
+  mimeType: string,
+  base64: string,
+  temperature: number,
+  apiKey: string
+) {
+  const client = geminiClient(apiKey);
+  let lastError: unknown;
+
+  for (const modelName of unique(GEMINI_MODELS)) {
+    try {
+      console.log(`Attempting screenshot generation with Gemini (${modelName})...`);
+      const model = client.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent({
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: prompt }, { inlineData: { mimeType, data: base64 } }],
+          },
+        ],
+        generationConfig: {
+          temperature,
+          maxOutputTokens: 8192,
+        },
+      });
+      return result.response.text();
+    } catch (error) {
+      lastError = error;
+      if (isProviderExhausted(error)) {
+        console.warn("Gemini vision quota or rate limit reached.");
+        throw error;
+      }
+      if (isUnavailableModel(error)) {
+        console.warn(`Gemini vision model unavailable: ${modelName}`);
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Gemini screenshot generation failed");
+}
+
+function geminiPromptFromMessages(messages: any[]) {
+  const systemMessage = messages.find((m: any) => m.role === "system")?.content || "";
+  const userMessage = messages.find((m: any) => m.role === "user")?.content || "";
+  return `${systemMessage}\n\nUSER REQUEST:\n${userMessage}`;
+}
+
+export async function generateWithFallback(messages: any[], temperature: number = 0.2) {
+  const { groqKey, googleKey } = getAiKeys();
+  console.log(`API Config: Groq=${Boolean(groqKey)}, Google=${Boolean(googleKey)}`);
+
+  if (!groqKey && !googleKey) {
+    throw new Error("NO_AI_KEYS");
+  }
+
+  const providers: Array<"groq" | "gemini"> = [];
+  if (groqKey) providers.push("groq");
+  if (googleKey) providers.push("gemini");
+
+  let lastError: unknown;
+
+  for (let index = 0; index < providers.length; index += 1) {
+    const provider = providers[index];
+    const next = providers[index + 1];
+
+    try {
+      if (provider === "groq" && groqKey) {
+        return await generateWithGroq(messages, temperature, groqKey);
+      }
+      if (provider === "gemini" && googleKey) {
+        return await generateWithGemini(geminiPromptFromMessages(messages), temperature, googleKey);
+      }
+    } catch (error) {
+      lastError = error;
+      const reason = error instanceof Error ? error.message : String(error);
+      if (next) {
+        console.warn(`${provider} failed (${reason}). Switching to ${next}...`);
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("All AI providers failed");
+}
+
+export async function generateFromImage(
+  prompt: string,
+  mimeType: string,
+  base64: string,
+  temperature: number = 0.2
+) {
+  const { googleKey } = getAiKeys();
+  console.log(`API Config: Groq=skipped, Google=${Boolean(googleKey)}`);
+
+  if (!googleKey) {
+    throw new Error("NO_GEMINI_KEY");
+  }
+
+  return generateWithGeminiImage(prompt, mimeType, base64, temperature, googleKey);
 }

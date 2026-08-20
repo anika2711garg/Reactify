@@ -45,11 +45,12 @@ https://reactify-3f22.vercel.app/
     ```
 
 3.  **Set up environment variables:**
-    Create a `.env.local` file in the root directory:
+    Create a `.env.local` file in the **same folder as `package.json`** (`Reactify/`):
     ```env
-    NEXT_PUBLIC_GROQ_API_KEY=your_groq_key
-    NEXT_PUBLIC_GEMINI_API_KEY=your_gemini_key
+    GROQ_API_KEY=your_groq_key
+    GOOGLE_API_KEY=your_gemini_key
     ```
+    These must stay server-only. `NEXT_PUBLIC_*` names also work as a fallback, but do not prefer them.
 
 4.  **Run the development server:**
     ```bash
