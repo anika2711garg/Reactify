@@ -27,6 +27,10 @@
     "react-live": "^4.1.8",
     "tailwind-merge": "^3.4.0"
   },
+  "allowScripts": {
+    "sharp": true,
+    "unrs-resolver": true
+  },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/babel__generator": "^7.27.0",
