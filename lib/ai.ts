@@ -16,20 +16,24 @@ const DEAD_MODELS = new Set([
   "llama-3.1-70b-versatile",
 ]);
 
+function isLiveModel(model: string | undefined): model is string {
+  return Boolean(model) && !DEAD_MODELS.has(model as string);
+}
+
 const GROQ_MODELS = [
   process.env.GROQ_MODEL,
   "openai/gpt-oss-20b",
   "openai/gpt-oss-120b",
   "meta-llama/llama-4-scout-17b-16e-instruct",
   "llama-3.3-70b-versatile",
-].filter((model): model is string => Boolean(model) && !DEAD_MODELS.has(model));
+].filter(isLiveModel);
 
 const GEMINI_MODELS = [
   process.env.GEMINI_MODEL,
   "gemini-3.6-flash",
   "gemini-3.5-flash",
   "gemini-3.5-flash-lite",
-].filter((model): model is string => Boolean(model) && !DEAD_MODELS.has(model));
+].filter(isLiveModel);
 
 function unique(models: string[]) {
   return [...new Set(models)];
