@@ -37,7 +37,7 @@ export function HomeState() {
           Turn any interface into React.
         </motion.h1>
         <motion.p variants={fadeUp} className="mt-5 max-w-xl text-base text-muted sm:text-lg">
-          Paste a URL or drop a screenshot. Reactify handles the rest.
+          Paste a URL or a screenshot. Reactify handles the rest.
         </motion.p>
 
         <motion.div variants={fadeUp} className="mt-10 w-full">

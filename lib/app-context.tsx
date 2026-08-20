@@ -250,7 +250,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     if (inputMode === "screenshot") {
       if (!uploadedImage) {
-        setError("Drop or upload a screenshot first.");
+        setError("Drop, upload, or paste a screenshot first.");
         return;
       }
       const section = createSyntheticSection();
