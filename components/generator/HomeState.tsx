@@ -35,9 +35,6 @@ export function HomeState() {
           <Wordmark className="text-2xl sm:text-3xl" />
         </motion.div>
 
-        <motion.p variants={fadeUp} className="mb-4 text-[11px] uppercase tracking-[0.28em] text-faint">
-          Interface laboratory
-        </motion.p>
         <motion.h1
           variants={fadeUp}
           className="max-w-4xl text-[42px] font-semibold leading-[1.05] tracking-[-0.04em] text-ink sm:text-6xl md:text-[72px]"
