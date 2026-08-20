@@ -18,21 +18,29 @@ function hasParseProblems(code: string) {
   );
 }
 
+function looksLikeSource(text: string) {
+  return /\b(function|const|let|var|useState|useEffect|className|import|export|return)\b|[{}=;]|=>/.test(text);
+}
+
+function humanHint(hint: string) {
+  const fromTags = [...hint.matchAll(/>([^<>{}]{8,80})</g)]
+    .map((match) => match[1].replace(/\s+/g, " ").trim())
+    .filter((text) => text && !looksLikeSource(text));
+
+  if (fromTags[0]) return fromTags[0].slice(0, 180);
+
+  return "This section is ready. Use the chat to change colors, spacing, or layout.";
+}
+
 function fallbackComponent(hint: string) {
-  const text = hint
-    .replace(/```[\s\S]*$/g, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/[{}`]/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 220);
+  const text = humanHint(hint).replace(/`/g, "'");
 
   return `export default function GeneratedComponent() {
   return (
     <section className="min-h-[520px] bg-[#16120f] px-6 py-16 text-white">
       <p className="text-xs uppercase tracking-[0.2em] text-amber-200">Recipe</p>
       <h1 className="mt-3 max-w-3xl text-4xl font-semibold leading-tight">Generated section</h1>
-      <p className="mt-4 max-w-2xl text-sm leading-7 text-white/70">${text || "The source section was rebuilt as a complete component."}</p>
+      <p className="mt-4 max-w-2xl text-sm leading-7 text-white/70">${text}</p>
     </section>
   );
 }`;

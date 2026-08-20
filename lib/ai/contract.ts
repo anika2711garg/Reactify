@@ -33,14 +33,26 @@ export function stripTypescript(src: string) {
     .replace(/(\w+)!(\.)/g, "$1$2");
 }
 
+const LEAKED_SOURCE =
+  /\b(function\s+\w+\s*\(|const\s+\[\w+|useState\s*\(|useEffect\s*\(|export\s+default|import\s+.+from)\b/;
+
+export function stripLeakedSourceText(code: string) {
+  return code.replace(/>([^<>{}]{16,})</g, (full, text: string) => {
+    if (!LEAKED_SOURCE.test(text)) return full;
+    return ">This section is ready. Use the chat to refine it.<";
+  });
+}
+
 export function sanitizeGeneratedCode(raw: string) {
-  return stripTypescript(
-    repairGeneratedJsx(
-      raw
-        .replace(/```[\w]*\n?/g, "")
-        .replace(/\sclass=/g, " className=")
-        .replace(/\sfor=/g, " htmlFor=")
-        .replace(/<!--[\s\S]*?-->/g, "")
+  return stripLeakedSourceText(
+    stripTypescript(
+      repairGeneratedJsx(
+        raw
+          .replace(/```[\w]*\n?/g, "")
+          .replace(/\sclass=/g, " className=")
+          .replace(/\sfor=/g, " htmlFor=")
+          .replace(/<!--[\s\S]*?-->/g, "")
+      )
     )
   ).trim();
 }
@@ -51,6 +63,7 @@ export function looksTruncated(code: string) {
   if (/import\s*\{[^}]*$/.test(trimmed)) return true;
   if (/from\s+['"][^'"]*$/.test(trimmed)) return true;
   if (!/export\s+default|function\s+\w+|const\s+\w+\s*=/.test(code)) return true;
+  if (/function\s+\w+\s*\([^)]*\)\s+(const|let|var|return|useState)/.test(code)) return true;
   if ((code.match(/\{/g) || []).length > (code.match(/\}/g) || []).length) return true;
   if (!/[}\)];\s*$/.test(trimmed)) return true;
   if (/(className=["'][^"']*)$/.test(trimmed)) return true;

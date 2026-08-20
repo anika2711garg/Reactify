@@ -24,7 +24,7 @@ import {
   useInsertionEffect,
   useSyncExternalStore,
 } from "react";
-import { looksTruncated, repairGeneratedJsx, stripTypescript } from "@/lib/ai/contract";
+import { looksTruncated, repairGeneratedJsx, stripLeakedSourceText, stripTypescript } from "@/lib/ai/contract";
 import { analyzeJsx } from "@/lib/parser/jsx-tree";
 
 interface LivePreviewProps {
@@ -54,7 +54,7 @@ const scope = {
 };
 
 export function transformPreviewCode(input: string) {
-  const cleaned = stripTypescript(repairGeneratedJsx(input || ""));
+  const cleaned = stripLeakedSourceText(stripTypescript(repairGeneratedJsx(input || "")));
   const analysis = analyzeJsx(cleaned);
   let src = analysis.warnings.some((warning) => /parse|unexpected|token/i.test(warning))
     ? cleaned
