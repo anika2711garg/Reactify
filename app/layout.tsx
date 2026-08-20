@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Reactify - AI Component Generator",
-  description: "Transform website sections into production-ready React components.",
+  title: "Reactify — Turn any interface into React",
+  description: "Paste a URL or drop a screenshot. Reactify turns interfaces into production-ready React + Tailwind components.",
 };
 
 export default function RootLayout({
@@ -25,7 +25,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased font-sans`}
       >
         {children}
       </body>

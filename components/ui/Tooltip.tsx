@@ -1,28 +1,45 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useId, useState } from "react";
+import { cn } from "@/lib/utils";
 
 interface TooltipProps {
-    content: string;
-    children: React.ReactNode;
+  content: string;
+  children: React.ReactNode;
+  side?: "top" | "right" | "bottom" | "left";
 }
 
-export function Tooltip({ content, children }: TooltipProps) {
-    const [isVisible, setIsVisible] = useState(false);
+const sideClass = {
+  top: "bottom-full left-1/2 mb-2 -translate-x-1/2",
+  right: "left-full top-1/2 ml-2 -translate-y-1/2",
+  bottom: "top-full left-1/2 mt-2 -translate-x-1/2",
+  left: "right-full top-1/2 mr-2 -translate-y-1/2",
+};
 
-    return (
-        <div
-            className="relative flex items-center justify-center z-50"
-            onMouseEnter={() => setIsVisible(true)}
-            onMouseLeave={() => setIsVisible(false)}
-        >
-            {children}
-            {isVisible && (
-                <div className="absolute top-full mt-2 px-3 py-1.5 text-xs font-medium text-white bg-slate-900/90 backdrop-blur-sm rounded-lg shadow-xl whitespace-nowrap border border-white/10 animate-in fade-in zoom-in-95 duration-200 pointer-events-none select-none z-[100]">
-                    {content}
-                    <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900/90 backdrop-blur-sm rotate-45 border-l border-t border-white/10" />
-                </div>
-            )}
-        </div>
-    );
+export function Tooltip({ content, children, side = "top" }: TooltipProps) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+
+  return (
+    <span
+      className="relative inline-flex"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onFocus={() => setOpen(true)}
+      onBlur={() => setOpen(false)}
+    >
+      {children}
+      <span
+        id={id}
+        role="tooltip"
+        className={cn(
+          "pointer-events-none absolute z-[80] whitespace-nowrap rounded-lg border border-stroke bg-[#12121A] px-2.5 py-1 text-[11px] font-medium text-ink shadow-float transition-all duration-200",
+          sideClass[side],
+          open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-0.5"
+        )}
+      >
+        {content}
+      </span>
+    </span>
+  );
 }
