@@ -72,3 +72,26 @@ export async function generateWithFallback(messages: any[], temperature: number 
 
     throw new Error('No valid API keys configured (GROQ_API_KEY or GOOGLE_API_KEY)');
 }
+
+export async function generateFromImage(prompt: string, mimeType: string, base64: string, temperature: number = 0.2) {
+    if (!googleKey || !genAI) {
+        throw new Error('Screenshot generation needs a Gemini key (GOOGLE_API_KEY) on the server.');
+    }
+
+    const model = genAI.getGenerativeModel({ model: MODEL_GEMINI });
+    const result = await model.generateContent({
+        contents: [{
+            role: 'user',
+            parts: [
+                { text: prompt },
+                { inlineData: { mimeType, data: base64 } },
+            ],
+        }],
+        generationConfig: {
+            temperature,
+            maxOutputTokens: 8192,
+        },
+    });
+
+    return result.response.text();
+}

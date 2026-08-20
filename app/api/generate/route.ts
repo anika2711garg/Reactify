@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateWithFallback } from "@/lib/ai";
+import { generateFromImage, generateWithFallback } from "@/lib/ai";
 import { extractDependencies, publicErrorMessage, sanitizeGeneratedCode } from "@/lib/ai/contract";
+import { parseDataUrl } from "@/lib/images/compress";
 import { analyzeJsx } from "@/lib/parser/jsx-tree";
+
+export const maxDuration = 60;
 
 const SYSTEM_PROMPT = `
 You are an expert Frontend Engineer specializing in **React, JavaScript, and Tailwind CSS**.
-Your goal is to convert raw HTML sections (scraped from websites) into **clean, production-ready, beautiful React components**.
+Your goal is to convert raw HTML sections or UI screenshots into **clean, production-ready, beautiful React components**.
 
 **STRICT REQUIREMENTS:**
 1. **Output:** Return ONLY the React code (JavaScript/JSX). Do not include markdown code fences. No TypeScript types.
@@ -17,7 +20,7 @@ Your goal is to convert raw HTML sections (scraped from websites) into **clean, 
    - **Do NOT** use react-icons. Use ONLY lucide-react.
 3. **Design System & Visual Excellence (CRITICAL):**
    - The component MUST look premium, modern, and polished.
-   - Use refined color palettes and generous whitespace.
+   - Closely match layout, spacing, typography, and color from the source.
    - Use subtle shadows, rounded corners, and hover states.
 4. **Responsiveness:**
    - Every component MUST be fully mobile-responsive.
@@ -27,59 +30,79 @@ Your goal is to convert raw HTML sections (scraped from websites) into **clean, 
    - ALWAYS use htmlFor NOT for
    - Self-close void elements
    - Single default export
-   - Meaningful semantic tags (header, nav, main, section, footer) so the component tree is useful
-6. **Structure:**
-   - Prefer clear section boundaries that can be selected independently.
+   - Meaningful semantic tags (header, nav, main, section, footer)
+6. **Images:**
+   - Recreate visual structure with Tailwind. Use placeholder images only when necessary.
 
 **OUTPUT FORMAT:**
 A single React file with one export default function component.
 NO markdown fences, NO explanations, ONLY the code!
 `;
 
+function styleInstruction(style?: string) {
+  if (!style) return "";
+  return `
+    **STYLE VARIANT:** "${style}"
+    - If "Minimal": Use lots of whitespace, simple typography, subtle borders, no heavy shadows.
+    - If "Modern": Use glassmorphism, gradients, rounded corners, soft large shadows.
+    - If "Dense": Use compact spacing, smaller fonts, high information density, borders.
+    - If "Brutalist": Use high contrast, thick borders, sharp corners, bold typography.
+  `;
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { html, requirements, style } = await req.json();
+    const { html, requirements, style, screenshot } = await req.json();
+    const hasHtml = typeof html === "string" && html.trim().length > 0;
+    const image = typeof screenshot === "string" ? parseDataUrl(screenshot) : null;
 
-    if (!html || typeof html !== "string") {
-      return NextResponse.json({ error: "HTML content is required" }, { status: 400 });
+    if (!hasHtml && !image) {
+      return NextResponse.json({ error: "HTML content or a screenshot is required" }, { status: 400 });
     }
 
     if (!process.env.GROQ_API_KEY && !process.env.GOOGLE_API_KEY) {
       return NextResponse.json({ error: "AI service is not configured on the server." }, { status: 500 });
     }
 
-    const truncatedHtml = html.length > 20000 ? html.substring(0, 20000) + "..." : html;
-
-    const styleInstruction = style
-      ? `
-    **STYLE VARIANT:** "${style}"
-    - If "Minimal": Use lots of whitespace, simple typography, subtle borders, no heavy shadows.
-    - If "Modern": Use glassmorphism, gradients, rounded corners, soft large shadows.
-    - If "Dense": Use compact spacing, smaller fonts, high information density, borders.
-    - If "Brutalist": Use high contrast, thick borders, sharp corners, bold typography.
-    `
-      : "";
-
-    const userMessage = `
-    Here is the HTML section to convert:
-    ${truncatedHtml}
-
-    ${styleInstruction}
+    const extras = `
+    ${styleInstruction(style)}
     ${requirements ? `Additional User Requirements: ${requirements}` : ""}
     `;
 
-    const raw = await generateWithFallback([
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: userMessage },
-    ]);
+    let raw = "";
+
+    if (image) {
+      const prompt = `${SYSTEM_PROMPT}
+
+Reconstruct this screenshot as a complete production-ready React + Tailwind component.
+Match the visual hierarchy, colors, spacing, and typography as closely as possible.
+${hasHtml ? `Optional structural hints:\n${html.slice(0, 4000)}` : ""}
+${extras}`;
+      raw = await generateFromImage(prompt, image.mimeType, image.base64);
+    } else {
+      const truncatedHtml = html.length > 20000 ? html.substring(0, 20000) + "..." : html;
+      raw = await generateWithFallback([
+        { role: "system", content: SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: `Here is the HTML section to convert:\n${truncatedHtml}\n${extras}`,
+        },
+      ]);
+    }
 
     const code = sanitizeGeneratedCode(raw);
+    if (!code) {
+      return NextResponse.json({ error: "The model returned empty code. Try again." }, { status: 502 });
+    }
+
     const analysis = analyzeJsx(code);
     const dependencies = extractDependencies(code);
 
     return NextResponse.json({
       code,
-      explanation: "Converted the captured interface into a responsive React + Tailwind component.",
+      explanation: image
+        ? "Reconstructed the uploaded screenshot as a React + Tailwind component."
+        : "Converted the captured interface into a responsive React + Tailwind component.",
       dependencies,
       warnings: analysis.warnings,
       tree: analysis.tree,

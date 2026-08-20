@@ -3,6 +3,7 @@
 import React, { useRef } from "react";
 import { Globe, ImagePlus, Loader2, Sparkles, X } from "lucide-react";
 import { Tabs } from "@/components/ui/Tabs";
+import { fileToCompressedDataUrl } from "@/lib/images/compress";
 import { useApp } from "@/lib/app-context";
 import { cn } from "@/lib/utils";
 
@@ -21,11 +22,15 @@ export function InputCommand() {
   const inputRef = useRef<HTMLInputElement>(null);
   const busy = isScraping || isGenerating;
 
-  const onFile = (file?: File) => {
+  const onFile = async (file?: File) => {
     if (!file || !file.type.startsWith("image/")) return;
-    const reader = new FileReader();
-    reader.onload = () => setUploadedImage(String(reader.result || ""));
-    reader.readAsDataURL(file);
+    try {
+      setUploadedImage(await fileToCompressedDataUrl(file));
+    } catch {
+      const reader = new FileReader();
+      reader.onload = () => setUploadedImage(String(reader.result || ""));
+      reader.readAsDataURL(file);
+    }
   };
 
   return (
@@ -113,7 +118,7 @@ export function InputCommand() {
               >
                 <ImagePlus className="mb-2 h-5 w-5 text-muted" />
                 <span className="text-sm text-ink">Drop a screenshot</span>
-                <span className="mt-1 text-xs text-faint">PNG or JPG of any interface</span>
+                <span className="mt-1 text-xs text-faint">PNG or JPG — Reactify will read the image and generate React</span>
                 <input
                   type="file"
                   accept="image/*"

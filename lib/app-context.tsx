@@ -203,6 +203,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             html: section.html,
+            screenshot: nextScreenshot || undefined,
             style,
             requirements: buildRequirements(
               "Ensure it is fully responsive and uses modern design.",
