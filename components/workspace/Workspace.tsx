@@ -68,7 +68,7 @@ export function Workspace() {
     if (autoRepairTried.current || !looksTruncated(generatedCode)) return;
     autoRepairTried.current = true;
     void handleIterate(
-      "The component is truncated. Finish every tag, quote, and className. Return only complete valid JavaScript JSX."
+      "Rewrite this into a complete compact React component under 80 lines. Close every import and tag. Keep the visible recipe content."
     );
   }, [generatedCode, handleIterate, isGenerating, isIterating, isScraping]);
 

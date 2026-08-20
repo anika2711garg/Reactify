@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateWithFallback } from "@/lib/ai";
 import { hasAiKeys } from "@/lib/ai/env";
 import { extractDependencies, publicErrorMessage, sanitizeGeneratedCode } from "@/lib/ai/contract";
-import { ensureCompleteCode } from "@/lib/ai/complete";
+import { ensureCompleteCode, isBrokenCode } from "@/lib/ai/complete";
 import { analyzeJsx } from "@/lib/parser/jsx-tree";
 
 const SYSTEM_PROMPT = `
@@ -10,21 +10,16 @@ You are an expert Frontend Engineer and React Refactoring specialist.
 Your goal is to MODIFY existing React code based on user instructions.
 
 **STRICT REQUIREMENTS:**
-1. Return ONLY the updated React code (JavaScript/JSX). No markdown fences. No TypeScript.
+1. Return ONLY a COMPLETE updated React file (JavaScript/JSX). No markdown. No TypeScript.
 2. Follow the user's instruction as PRIORITY #1.
-3. Preserve existing functionality unless asked to change it.
-4. Maintain React + Tailwind + lucide-react.
-5. If the user asks to change one element, keep unrelated sections intact.
-6. Use semantic tags so the component tree stays meaningful.
+3. If the current code is truncated or invalid, first finish a valid compact component, then apply the instruction.
+4. Keep the file under 80 lines. Close every import, quote, tag, and brace.
+5. Maintain React + Tailwind + lucide-react. At most 4 icon imports.
+6. If the user asks to change color, apply Tailwind text color classes (for example text-red-500) to the relevant text.
 7. Use 'export default function GeneratedComponent' or similar consistent naming.
 
-**INPUT:**
-- Current Code
-- User Instruction
-- Optional selected element path/name
-
 **OUTPUT:**
-The fully updated component code. Only code.
+The fully updated complete component code. Only code.
 `;
 
 export async function POST(req: NextRequest) {
@@ -52,6 +47,7 @@ export async function POST(req: NextRequest) {
 
     USER INSTRUCTION:
     ${instruction}
+    ${isBrokenCode(currentCode) ? "The existing code is incomplete. Rewrite a complete valid component first, then apply the instruction." : ""}
 
     ${focus}
     `;

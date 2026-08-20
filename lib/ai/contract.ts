@@ -48,10 +48,13 @@ export function sanitizeGeneratedCode(raw: string) {
 export function looksTruncated(code: string) {
   if (!code.trim()) return true;
   const trimmed = code.trim();
+  if (/import\s*\{[^}]*$/.test(trimmed)) return true;
+  if (/from\s+['"][^'"]*$/.test(trimmed)) return true;
   if (!/export\s+default|function\s+\w+|const\s+\w+\s*=/.test(code)) return true;
+  if ((code.match(/\{/g) || []).length > (code.match(/\}/g) || []).length) return true;
   if (!/[}\)];\s*$/.test(trimmed)) return true;
   if (/(className=["'][^"']*)$/.test(trimmed)) return true;
-  if (/<(header|div|span|button|nav|section|footer|main)\b[^>]*$/.test(trimmed)) return true;
+  if (/<(header|div|span|button|nav|section|footer|main|p|h1|h2|h3)\b[^>]*$/.test(trimmed)) return true;
   return false;
 }
 
