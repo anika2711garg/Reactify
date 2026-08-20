@@ -16,24 +16,28 @@ const DEAD_MODELS = new Set([
   "llama-3.1-70b-versatile",
 ]);
 
-function isLiveModel(model: string | undefined): model is string {
-  return Boolean(model) && !DEAD_MODELS.has(model as string);
+function liveModels(preferred: string | undefined, fallbacks: string[]) {
+  const models: string[] = [];
+  const chosen = preferred?.trim();
+  if (chosen && !DEAD_MODELS.has(chosen)) models.push(chosen);
+  for (const model of fallbacks) {
+    if (!DEAD_MODELS.has(model) && !models.includes(model)) models.push(model);
+  }
+  return models;
 }
 
-const GROQ_MODELS = [
-  process.env.GROQ_MODEL,
+const GROQ_MODELS = liveModels(process.env.GROQ_MODEL, [
   "openai/gpt-oss-20b",
   "openai/gpt-oss-120b",
   "meta-llama/llama-4-scout-17b-16e-instruct",
   "llama-3.3-70b-versatile",
-].filter(isLiveModel);
+]);
 
-const GEMINI_MODELS = [
-  process.env.GEMINI_MODEL,
+const GEMINI_MODELS = liveModels(process.env.GEMINI_MODEL, [
   "gemini-3.6-flash",
   "gemini-3.5-flash",
   "gemini-3.5-flash-lite",
-].filter(isLiveModel);
+]);
 
 function unique(models: string[]) {
   return [...new Set(models)];
